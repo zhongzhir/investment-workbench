@@ -3,12 +3,12 @@
   "short_name": "Vestia",
   "description": "面向一级股权投资专业人员的 AI 增强型工作平台",
   "lang": "zh-CN",
-  "start_url": "https://vestia-two.vercel.app/",
-  "scope": "https://vestia-two.vercel.app/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#2f6f4f",
+  "theme_color": "#0D1B3E",
   "icons": [
     {
       "src": "/icons/icon.svg",
