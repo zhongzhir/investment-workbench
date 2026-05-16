@@ -1,0 +1,41 @@
+{
+  "name": "investment-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "投资工作台 — 面向一级股权投资专业人员的 AI 增强型工作平台",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:schema": "node --env-file=.env.local scripts/apply-schema.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
+    "bcryptjs": "^2.4.3",
+    "docx": "^9.6.1",
+    "mammoth": "^1.12.0",
+    "next": "14.2.18",
+    "next-auth": "^4.24.14",
+    "openai": "^6.38.0",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.17.6",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.18",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3"
+  }
+}

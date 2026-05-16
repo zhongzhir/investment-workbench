@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+}
+
+/* 文档为中心的排版：正文行高宽松、字号舒适 */
+.prose-doc {
+  @apply text-[15px] leading-7 text-ink;
+}
+
+/* 报告正文：文档编辑器观感，衬线字体 */
+.report-body {
+  font-family: "Songti SC", "SimSun", Georgia, "Times New Roman", serif;
+  @apply text-[15.5px] leading-8 text-ink;
+}
+.report-body h1 {
+  @apply mb-3 mt-8 border-b border-line pb-1.5 text-lg font-semibold text-ink;
+}
+.report-body h1:first-child {
+  @apply mt-0;
+}
+.report-body h2 {
+  @apply mb-2 mt-6 text-base font-semibold text-ink;
+}
+.report-body h3 {
+  @apply mb-2 mt-4 text-sm font-semibold text-ink;
+}
+.report-body p {
+  @apply my-3;
+}
+.report-body ul {
+  @apply my-3 list-disc space-y-1 pl-6;
+}
+.report-body ol {
+  @apply my-3 list-decimal space-y-1 pl-6;
+}
+.report-body strong {
+  @apply font-semibold text-ink;
+}
+
+/* 流式输出的打字机光标 */
+.type-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: #2f6f4f;
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* 细滚动条，贴合 Notion 式克制风格 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-line;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-ink-faint;
+}

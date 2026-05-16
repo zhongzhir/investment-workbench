@@ -1,0 +1,22 @@
+import { ApiKeyConfig } from "@/components/project/ApiKeyConfig";
+
+// 设置页：AI 模型与 API Key 管理。
+export default function SettingsPage() {
+  return (
+    <div className="mx-auto max-w-doc px-6 py-12">
+      <h1 className="text-xl font-semibold text-ink">设置</h1>
+
+      <section className="mt-8">
+        <h2 className="text-sm font-medium text-ink">AI 模型与 API Key</h2>
+        <p className="mt-1 text-xs leading-5 text-ink-faint">
+          配置用于生成投资分析报告的 AI 服务商与 API Key。
+          Key 经 AES-256-GCM 加密后存储于数据库，页面仅显示脱敏值，
+          生成报告时由服务端解密使用。
+        </p>
+        <div className="mt-4">
+          <ApiKeyConfig />
+        </div>
+      </section>
+    </div>
+  );
+}
