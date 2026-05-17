@@ -18,13 +18,13 @@
     "next": "14.2.18",
     "next-auth": "^4.24.14",
     "openai": "^6.38.0",
-    "pdfjs-dist": "^5.7.284",
     "pg": "^8.13.1",
     "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

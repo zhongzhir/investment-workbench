@@ -2,8 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    // pdfjs-dist 为重量级原生依赖，交由 Node 直接 require，不参与打包
-    serverComponentsExternalPackages: ["pdfjs-dist"],
+    // unpdf 为重量级原生依赖，交由 Node 直接 require，不参与打包
+    serverComponentsExternalPackages: ["unpdf"],
     serverActions: {
       bodySizeLimit: "25mb",
     },
