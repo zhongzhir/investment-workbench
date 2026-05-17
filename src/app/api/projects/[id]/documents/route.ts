@@ -5,6 +5,8 @@ import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { detectFileType, parseDocument } from "@/lib/parser";
 
+export const maxDuration = 120;
+
 const UPLOAD_DIR = join(process.cwd(), "tmp", "uploads");
 
 // POST /api/projects/[id]/documents — 上传 BP 文件并解析文本
