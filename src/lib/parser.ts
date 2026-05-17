@@ -34,14 +34,17 @@ export async function parseDocument(
   let text = "";
 
   if (fileType === "pdf") {
-    // pdf-parse v2：基于 pdfjs 的 PDFParse 类
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
-    try {
-      const result = await parser.getText();
-      text = result.text;
-    } finally {
-      await parser.destroy();
+    // pdfjs-dist legacy 构建：Node.js 服务端模式，逐页提取文本
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) })
+      .promise;
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item: any) => ("str" in item ? item.str : ""))
+        .join(" ");
+      text += pageText + "\n";
     }
   } else {
     const result = await mammoth.extractRawText({ buffer });
