@@ -27,6 +27,10 @@ export default function NewProjectPage() {
       setError("仅支持 PDF 与 Word(.docx) 格式");
       return;
     }
+    if (f.size > 4 * 1024 * 1024) {
+      setError("文件超过 4MB，Vercel 平台限制单次上传大小。建议将 PDF 压缩后重试，或联系我们获取大文件上传支持。");
+      return;
+    }
     setError("");
     setFile(f);
   }
@@ -215,6 +219,7 @@ export default function NewProjectPage() {
               <li>用 Word 或 WPS 将文件另存为 PDF</li>
               <li>用 Adobe Acrobat 进行 OCR 识别后再上传</li>
             </ol>
+            <p className="mt-1">· 文件大小请控制在 4MB 以内</p>
           </div>
         </div>
 
