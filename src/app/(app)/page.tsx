@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { query } from "@/lib/db";
 
 // 首页：以文档为中心的概览，大量留白，引导进入核心动线。
 const QUICK_ACTIONS = [
@@ -20,17 +21,38 @@ const QUICK_ACTIONS = [
   },
 ];
 
-const STEPS = [
-  "上传 BP（PDF / Word）",
-  "输入 3–10 条判断要点",
-  "AI 生成分析报告初稿",
-  "多轮自然语言修改",
-  "导出 Word 文档",
-];
+interface RecentProject {
+  id: string;
+  name: string;
+  status: string;
+  updated_at: string;
+}
+
+// 相对时间格式化
+function relativeTime(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const hour = 3_600_000;
+  const day = 24 * hour;
+  if (diff < hour) return "刚刚";
+  if (diff < day) return `${Math.floor(diff / hour)}小时前`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)}天前`;
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 export default async function HomePage() {
   const session = await getSession();
   const user = session?.user;
+
+  const recentProjects = user
+    ? await query<RecentProject>(
+        `SELECT id, name, status, updated_at FROM projects
+          WHERE user_id = $1
+          ORDER BY updated_at DESC
+          LIMIT 5`,
+        [user.id]
+      )
+    : [];
 
   return (
     <div className="mx-auto max-w-doc px-6 py-16">
@@ -76,18 +98,46 @@ export default async function HomePage() {
 
       <section className="mt-12">
         <h2 className="text-xs font-medium uppercase tracking-wide text-ink-faint">
-          MVP 核心动线
+          最近项目
         </h2>
-        <ol className="mt-4 space-y-2">
-          {STEPS.map((step, i) => (
-            <li key={step} className="flex items-center gap-3 text-sm text-ink-soft">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-medium text-ink-faint">
-                {i + 1}
-              </span>
-              {step}
-            </li>
-          ))}
-        </ol>
+        {recentProjects.length === 0 ? (
+          <p className="mt-4 text-center text-sm text-ink-soft">
+            还没有项目。点击右上角「新建项目分析」开始。
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-line">
+            {recentProjects.map((p) => {
+              const isActive =
+                p.status === "evaluating" || p.status === "invested";
+              return (
+                <li key={p.id}>
+                  <Link
+                    href={`/projects/${p.id}`}
+                    className="flex items-center gap-4 rounded-md px-2 py-3 transition-colors hover:bg-surface"
+                  >
+                    <span className="flex-1 truncate text-sm font-medium text-ink">
+                      {p.name}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-soft">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          isActive ? "bg-green-500" : "bg-ink-faint"
+                        }`}
+                      />
+                      {isActive ? "进行中" : "已归档"}
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-faint">
+                      {relativeTime(p.updated_at)}
+                    </span>
+                    <span className="shrink-0 text-xs font-medium text-accent">
+                      继续 →
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );
