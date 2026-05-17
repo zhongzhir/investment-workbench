@@ -114,17 +114,17 @@ export async function GET(
     bold: true,
     color: WHITE,
   });
-  cover.addText(
-    `${report.industry}  ·  ${report.stage}`,
-    {
+  const meta = [report.industry, report.stage].filter(Boolean).join("  ·  ");
+  if (meta) {
+    cover.addText(meta, {
       x: 0.7,
       y: 4.3,
       w: 11.9,
       h: 0.6,
       fontSize: 22,
       color: ORANGE,
-    }
-  );
+    });
+  }
   cover.addText(report.title, {
     x: 0.7,
     y: 5.0,
@@ -242,19 +242,19 @@ export async function GET(
           x: 0.7,
           y: cursorY,
           w: 11.9,
-          h: 1.6,
+          h: 2.4,
           fontSize: 14,
           color: INK_SOFT,
           lineSpacingMultiple: 1.3,
           valign: "top",
         }
       );
-      cursorY += 1.8;
+      cursorY += 2.6;
     }
 
     // 要点转卡片网格（两列）
     const cardW = 5.78;
-    const cardH = 1.4;
+    const cardH = 1.5;
     const gapX = 0.34;
     const gapY = 0.3;
     bulletPage.forEach((b, i) => {
