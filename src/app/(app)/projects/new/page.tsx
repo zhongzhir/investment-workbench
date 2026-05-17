@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { upload } from "@vercel/blob/client";
 
 type Phase = "idle" | "working" | "done" | "error";
 
@@ -39,30 +38,37 @@ export default function NewProjectPage() {
   async function uploadDocument(pid: string): Promise<{ charCount: number }> {
     if (!file) throw new Error("未选择文件");
 
-    // 直传到 Vercel Blob
-    const blob = await upload(file.name, file, {
-      access: "public",
-      handleUploadUrl: "/api/upload-url",
-      onUploadProgress: (progress) => {
-        setProgress(Math.round(progress.percentage));
-      },
+    // 第一步：把文件上传到 Vercel Blob（经服务端中转）
+    setProgress(10);
+    const blobForm = new FormData();
+    blobForm.append("file", file);
+    const blobRes = await fetch("/api/upload-url", {
+      method: "POST",
+      body: blobForm,
     });
+    if (!blobRes.ok) {
+      const data = await blobRes.json();
+      throw new Error(data.error || "文件上传失败");
+    }
+    const { url: blobUrl } = await blobRes.json();
+    setProgress(60);
 
-    // 把 Blob URL 传给后端解析
+    // 第二步：把 Blob URL 传给后端解析
     const fileType = file.name.toLowerCase().endsWith(".pdf") ? "pdf" : "docx";
     const res = await fetch(`/api/projects/${pid}/documents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        blobUrl: blob.url,
+        blobUrl,
         filename: file.name,
         fileType,
       }),
     });
+    setProgress(100);
 
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || "上传失败");
+      throw new Error(data.error || "解析失败");
     }
     return res.json();
   }
