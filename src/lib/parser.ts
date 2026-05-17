@@ -36,10 +36,12 @@ export async function parseDocument(
 
   if (fileType === "pdf") {
     // unpdf：专为 serverless 环境设计的 PDF 文本提取
+    console.log("[parser] unpdf extractText 开始，buffer大小:", buffer.length);
     const { text: pages } = await extractText(new Uint8Array(buffer), {
       mergePages: true,
     });
     text = Array.isArray(pages) ? pages.join("\n") : String(pages);
+    console.log("[parser] extractText 完成，文本长度:", text.length);
   } else {
     const result = await mammoth.extractRawText({ buffer });
     text = result.value;
