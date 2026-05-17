@@ -184,3 +184,144 @@ CREATE INDEX idx_reports_user    ON reports(user_id);
 CREATE TRIGGER trg_reports_updated
   BEFORE UPDATE ON reports
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ------------------------------------------------------------
+-- 6. 投资判断记录表 investment_judgments
+--    记录投资人在项目各阶段的判断、疑虑与决策依据。
+--    这是知识库"经验内化"的核心——存储的不只是文档，
+--    而是投资人的推理过程和决策逻辑，随时间形成认知演变时间线。
+-- ------------------------------------------------------------
+CREATE TABLE investment_judgments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id    UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  -- 判断发生的阶段
+  stage         TEXT NOT NULL DEFAULT 'initial'
+                  CHECK (stage IN (
+                    'initial',      -- 初次接触/看BP
+                    'due_diligence',-- 尽调阶段
+                    'decision',     -- 投决会
+                    'post_invest',  -- 投后跟踪
+                    'exit'          -- 退出复盘
+                  )),
+  -- 判断类型
+  judgment_type TEXT NOT NULL DEFAULT 'note'
+                  CHECK (judgment_type IN (
+                    'thesis',       -- 投资逻辑
+                    'concern',      -- 核心疑虑
+                    'assumption',   -- 关键假设
+                    'decision',     -- 最终决策及依据
+                    'note'          -- 随手笔记
+                  )),
+  title         TEXT,                       -- 判断标题（可选）
+  content       TEXT NOT NULL,              -- 判断正文
+  -- 后续验证结果（投后复盘时填写）
+  outcome       TEXT,
+  -- 该判断是否已被知识库索引（向量化）
+  is_indexed    BOOLEAN NOT NULL DEFAULT false,
+  embedding     VECTOR(1536),
+  metadata      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_judgments_user    ON investment_judgments(user_id);
+CREATE INDEX idx_judgments_project ON investment_judgments(project_id);
+CREATE INDEX idx_judgments_stage   ON investment_judgments(user_id, stage);
+CREATE INDEX idx_judgments_type    ON investment_judgments(user_id, judgment_type);
+CREATE INDEX idx_judgments_embedding ON investment_judgments
+  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TRIGGER trg_judgments_updated
+  BEFORE UPDATE ON investment_judgments
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ------------------------------------------------------------
+-- 7. 会议记录表 meeting_notes
+--    结构化存储投资人的会议记录（创始人访谈、专家访谈、投后会议等）。
+--    独立于文档上传，支持快速录入和语义检索。
+-- ------------------------------------------------------------
+CREATE TABLE meeting_notes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id    UUID REFERENCES projects(id) ON DELETE SET NULL,
+  title         TEXT NOT NULL,              -- 会议标题
+  meeting_type  TEXT NOT NULL DEFAULT 'founder'
+                  CHECK (meeting_type IN (
+                    'founder',      -- 创始人访谈
+                    'expert',       -- 专家访谈
+                    'lp',           -- LP沟通
+                    'post_invest',  -- 投后例会
+                    'internal',     -- 内部讨论
+                    'other'
+                  )),
+  meeting_date  DATE,                       -- 会议日期
+  participants  JSONB NOT NULL DEFAULT '[]'::jsonb,  -- 参与者列表
+  content       TEXT NOT NULL,              -- 会议记录正文（Markdown）
+  key_points    JSONB NOT NULL DEFAULT '[]'::jsonb,  -- AI提取的关键要点
+  action_items  JSONB NOT NULL DEFAULT '[]'::jsonb,  -- 待办事项
+  is_indexed    BOOLEAN NOT NULL DEFAULT false,
+  embedding     VECTOR(1536),
+  metadata      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_meetings_user    ON meeting_notes(user_id);
+CREATE INDEX idx_meetings_project ON meeting_notes(project_id);
+CREATE INDEX idx_meetings_type    ON meeting_notes(user_id, meeting_type);
+CREATE INDEX idx_meetings_date    ON meeting_notes(user_id, meeting_date DESC);
+CREATE INDEX idx_meetings_embedding ON meeting_notes
+  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TRIGGER trg_meetings_updated
+  BEFORE UPDATE ON meeting_notes
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ------------------------------------------------------------
+-- 8. SKILL表 user_skills
+--    记录用户安装/收藏的分析技能包。
+--    早期SKILL来自外部（GitHub/GPTs），Vestia做聚合和策展。
+-- ------------------------------------------------------------
+CREATE TABLE user_skills (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  skill_name    TEXT NOT NULL,              -- 技能名称
+  skill_slug    TEXT NOT NULL,              -- 唯一标识符
+  description   TEXT,
+  source_type   TEXT NOT NULL DEFAULT 'external'
+                  CHECK (source_type IN (
+                    'vestia',       -- Vestia官方出品
+                    'community',    -- 社区贡献
+                    'external'      -- 外部引入（GitHub/GPTs等）
+                  )),
+  source_url    TEXT,                       -- 外部来源链接
+  -- 嵌入方式：link跳转 / embed内嵌 / api调用
+  embed_type    TEXT NOT NULL DEFAULT 'link'
+                  CHECK (embed_type IN ('link', 'embed', 'api')),
+  embed_config  JSONB NOT NULL DEFAULT '{}'::jsonb,  -- 嵌入配置（URL等）
+  is_active     BOOLEAN NOT NULL DEFAULT true,
+  last_used_at  TIMESTAMPTZ,
+  use_count     INTEGER NOT NULL DEFAULT 0,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, skill_slug)
+);
+
+CREATE INDEX idx_skills_user   ON user_skills(user_id);
+CREATE INDEX idx_skills_active ON user_skills(user_id, is_active);
+
+CREATE TRIGGER trg_skills_updated
+  BEFORE UPDATE ON user_skills
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ------------------------------------------------------------
+-- 9. 知识库条目补充 updated_at
+--    原 knowledge_base_entries 表缺少 updated_at，补充迁移。
+-- ------------------------------------------------------------
+ALTER TABLE knowledge_base_entries
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+CREATE TRIGGER trg_kb_updated
+  BEFORE UPDATE ON knowledge_base_entries
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
