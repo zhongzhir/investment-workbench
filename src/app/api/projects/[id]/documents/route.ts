@@ -52,12 +52,14 @@ export async function POST(
 
   // 解析文本
   let parsed;
+  console.log("[documents] 开始解析，fileType:", fileType, "bufferSize:", buffer.length);
   try {
     parsed = await parseDocument(buffer, fileType);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "解析失败";
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : "";
     return NextResponse.json(
-      { error: `文档解析失败：${msg}` },
+      { error: `文档解析失败：${msg}`, detail: stack },
       { status: 422 }
     );
   }
