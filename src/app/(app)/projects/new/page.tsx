@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { upload } from "@vercel/blob/client";
 
 type Phase = "idle" | "working" | "done" | "error";
 
@@ -28,8 +27,8 @@ export default function NewProjectPage() {
       setError("仅支持 PDF 与 Word(.docx) 格式");
       return;
     }
-    if (f.size > 50 * 1024 * 1024) {
-      setError("文件超过 50MB，请压缩后重试");
+    if (f.size > 4 * 1024 * 1024) {
+      setError("文件超过 4MB，请压缩后重试");
       return;
     }
     setError("");
@@ -39,25 +38,27 @@ export default function NewProjectPage() {
   async function uploadDocument(pid: string): Promise<{ charCount: number }> {
     if (!file) throw new Error("未选择文件");
 
-    const blob = await upload(file.name, file, {
-      access: "public",
-      handleUploadUrl: "/api/upload-url",
-      multipart: true,
-      onUploadProgress: (progress) => {
-        setProgress(Math.round(progress.percentage));
-      },
+    setProgress(20);
+    const blobForm = new FormData();
+    blobForm.append("file", file);
+    const blobRes = await fetch("/api/upload-url", {
+      method: "POST",
+      body: blobForm,
     });
+    if (!blobRes.ok) {
+      const data = await blobRes.json();
+      throw new Error(data.error || "文件上传失败");
+    }
+    const { url: blobUrl } = await blobRes.json();
+    setProgress(70);
 
     const fileType = file.name.toLowerCase().endsWith(".pdf") ? "pdf" : "docx";
     const res = await fetch(`/api/projects/${pid}/documents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        blobUrl: blob.url,
-        filename: file.name,
-        fileType,
-      }),
+      body: JSON.stringify({ blobUrl, filename: file.name, fileType }),
     });
+    setProgress(100);
 
     if (!res.ok) {
       const data = await res.json();
@@ -230,7 +231,7 @@ export default function NewProjectPage() {
               <li>用 Word 或 WPS 将文件另存为 PDF</li>
               <li>用 Adobe Acrobat 进行 OCR 识别后再上传</li>
             </ol>
-            <p className="mt-1">· 文件大小请控制在 50MB 以内</p>
+            <p className="mt-1">· 文件大小请控制在 4MB 以内</p>
           </div>
         </div>
 
