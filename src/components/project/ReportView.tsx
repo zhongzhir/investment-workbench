@@ -182,6 +182,17 @@ export function ReportView({
           >
             导出 Word
           </a>
+          <a
+            href={reportId ? `/api/reports/${reportId}/export-ppt` : undefined}
+            aria-disabled={!reportId || streaming}
+            className={`rounded-md border px-3 py-1.5 text-sm ${
+              reportId && !streaming
+                ? "border-accent text-accent hover:bg-accent-soft"
+                : "pointer-events-none border-line text-ink-faint opacity-50"
+            }`}
+          >
+            导出 PPT
+          </a>
         </div>
       </div>
 
