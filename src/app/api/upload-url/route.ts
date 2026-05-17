@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "未收到文件" }, { status: 400 });
     }
     const blob = await put(file.name, file, {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
     });
     return NextResponse.json({ url: blob.url });

@@ -44,7 +44,11 @@ export async function POST(
     );
   }
 
-  const fetchRes = await fetch(blobUrl);
+  const fetchRes = await fetch(blobUrl, {
+    headers: {
+      Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+    },
+  });
   if (!fetchRes.ok) {
     return NextResponse.json({ error: "文件读取失败" }, { status: 422 });
   }
