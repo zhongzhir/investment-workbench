@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { upload } from "@vercel/blob/client";
 
 type Phase = "idle" | "working" | "done" | "error";
 
@@ -27,34 +28,43 @@ export default function NewProjectPage() {
       setError("仅支持 PDF 与 Word(.docx) 格式");
       return;
     }
-    if (f.size > 4 * 1024 * 1024) {
-      setError("文件超过 4MB，Vercel 平台限制单次上传大小。建议将 PDF 压缩后重试，或联系我们获取大文件上传支持。");
+    if (f.size > 50 * 1024 * 1024) {
+      setError("文件超过 50MB，请压缩后重试");
       return;
     }
     setError("");
     setFile(f);
   }
 
-  // 用 XHR 上传以获得进度回调
-  function uploadDocument(pid: string): Promise<{ charCount: number }> {
-    return new Promise((resolve, reject) => {
-      const form = new FormData();
-      form.append("file", file!);
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `/api/projects/${pid}/documents`);
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-      xhr.onload = () => {
-        const data = JSON.parse(xhr.responseText || "{}");
-        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-        else reject(new Error(data.error || "上传失败"));
-      };
-      xhr.onerror = () => reject(new Error("网络错误"));
-      xhr.send(form);
+  async function uploadDocument(pid: string): Promise<{ charCount: number }> {
+    if (!file) throw new Error("未选择文件");
+
+    // 直传到 Vercel Blob
+    const blob = await upload(file.name, file, {
+      access: "public",
+      handleUploadUrl: "/api/upload-url",
+      onUploadProgress: (progress) => {
+        setProgress(Math.round(progress.percentage));
+      },
     });
+
+    // 把 Blob URL 传给后端解析
+    const fileType = file.name.toLowerCase().endsWith(".pdf") ? "pdf" : "docx";
+    const res = await fetch(`/api/projects/${pid}/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blobUrl: blob.url,
+        filename: file.name,
+        fileType,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "上传失败");
+    }
+    return res.json();
   }
 
   async function handleSubmit() {
@@ -219,7 +229,7 @@ export default function NewProjectPage() {
               <li>用 Word 或 WPS 将文件另存为 PDF</li>
               <li>用 Adobe Acrobat 进行 OCR 识别后再上传</li>
             </ol>
-            <p className="mt-1">· 文件大小请控制在 4MB 以内</p>
+            <p className="mt-1">· 文件大小请控制在 50MB 以内</p>
           </div>
         </div>
 

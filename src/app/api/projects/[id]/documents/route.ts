@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import { writeFile, mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { detectFileType, parseDocument } from "@/lib/parser";
+import { parseDocument } from "@/lib/parser";
 
 export const maxDuration = 120;
 
-const UPLOAD_DIR = join(process.cwd(), "tmp", "uploads");
-
-// POST /api/projects/[id]/documents — 上传 BP 文件并解析文本
+// POST /api/projects/[id]/documents — 从 Blob URL 拉取 BP 文件并解析文本
 export async function POST(
   req: Request,
   { params }: { params: { id: string } }
@@ -28,27 +24,31 @@ export async function POST(
     return NextResponse.json({ error: "项目不存在" }, { status: 404 });
   }
 
-  let form: FormData;
+  let body: { blobUrl?: string; filename?: string; fileType?: string };
   try {
-    form = await req.formData();
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
   }
 
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "未收到文件" }, { status: 400 });
+  const { blobUrl, filename, fileType: fileTypeRaw } = body;
+  if (!blobUrl || !filename) {
+    return NextResponse.json({ error: "缺少文件信息" }, { status: 400 });
   }
 
-  const fileType = detectFileType(file.name, file.type);
-  if (!fileType) {
+  const fileType = fileTypeRaw as "pdf" | "docx" | null;
+  if (!fileType || !["pdf", "docx"].includes(fileType)) {
     return NextResponse.json(
       { error: "仅支持 PDF 与 Word(.docx) 格式" },
       { status: 400 }
     );
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const fetchRes = await fetch(blobUrl);
+  if (!fetchRes.ok) {
+    return NextResponse.json({ error: "文件读取失败" }, { status: 422 });
+  }
+  const buffer = Buffer.from(await fetchRes.arrayBuffer());
 
   // 解析文本
   let parsed;
@@ -71,16 +71,8 @@ export async function POST(
     );
   }
 
-  // 落盘保存原始文件（本地开发；生产可替换为对象存储）
-  let fileUrl: string | null = null;
-  try {
-    await mkdir(UPLOAD_DIR, { recursive: true });
-    const safeName = `${Date.now()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
-    await writeFile(join(UPLOAD_DIR, safeName), buffer);
-    fileUrl = `/tmp/uploads/${safeName}`;
-  } catch {
-    // 落盘失败不阻断流程，extracted_text 已足够支撑后续生成
-  }
+  // 文件已存于 Vercel Blob，直接记录其 URL
+  const fileUrl = blobUrl;
 
   const rows = await query<{ id: string }>(
     `INSERT INTO documents
@@ -91,7 +83,7 @@ export async function POST(
     [
       session.user.id,
       params.id,
-      file.name,
+      filename,
       fileType,
       fileUrl,
       buffer.length,
@@ -102,7 +94,7 @@ export async function POST(
   return NextResponse.json(
     {
       id: rows[0].id,
-      filename: file.name,
+      filename,
       charCount: parsed.charCount,
     },
     { status: 201 }
