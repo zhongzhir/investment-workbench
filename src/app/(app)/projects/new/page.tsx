@@ -96,7 +96,9 @@ export default function NewProjectPage() {
       setCharCount(count);
       setPhase("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "操作失败");
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[upload] 错误：", e);
+      setError(msg || "操作失败，请打开浏览器控制台查看详情");
       setPhase("error");
     }
   }
