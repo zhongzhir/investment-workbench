@@ -206,6 +206,16 @@ export default function NewProjectPage() {
               </>
             )}
           </div>
+          <div className="mt-2 text-xs leading-5 text-ink-faint">
+            <p>
+              支持 PDF 和 Word(.docx) 格式。请确保 PDF 中的文字可以选中复制，
+              扫描件或图片型 PDF 无法提取文本。如上传失败，可尝试：
+            </p>
+            <ol className="mt-1 list-decimal pl-5">
+              <li>用 Word 或 WPS 将文件另存为 PDF</li>
+              <li>用 Adobe Acrobat 进行 OCR 识别后再上传</li>
+            </ol>
+          </div>
         </div>
 
         {busy && (
