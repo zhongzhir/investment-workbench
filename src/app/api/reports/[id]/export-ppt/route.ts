@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import pptxgen from "pptxgenjs";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
+import type { FinancialData } from "@/lib/types";
 
 // 品牌色
 const NAVY = "0D1B3E";
@@ -70,8 +71,10 @@ export async function GET(
     project_name: string;
     industry: string;
     stage: string;
+    financial_data: FinancialData | null;
   }>(
-    `SELECT r.title, r.content, p.name AS project_name, p.industry, p.stage
+    `SELECT r.title, r.content, p.name AS project_name,
+            p.industry, p.stage, p.financial_data
      FROM reports r JOIN projects p ON p.id = r.project_id
      WHERE r.id = $1 AND r.user_id = $2`,
     [params.id, session.user.id]
@@ -193,16 +196,154 @@ export async function GET(
     });
   });
 
-  // —— 内容页 ——
-  const CARDS_PER_SLIDE = 6;
+  // —— 财务概览页（financial_data 存在且有内容时插入）——
+  const fd = report.financial_data;
+  const hasFinancials =
+    !!fd &&
+    ((fd.revenue?.length ?? 0) > 0 ||
+      (fd.valuation?.length ?? 0) > 0 ||
+      (fd.key_metrics?.length ?? 0) > 0);
 
-  function addContentSlide(
-    section: Section,
-    index: number,
-    bulletPage: string[],
-    paragraphs: string[],
-    pageSuffix: string
-  ) {
+  if (hasFinancials && fd) {
+    const fin = pptx.addSlide();
+    fin.background = { color: WHITE };
+    fin.addText("财务概览", {
+      x: 0.7,
+      y: 0.6,
+      w: 11.9,
+      h: 0.8,
+      fontSize: 30,
+      bold: true,
+      color: NAVY,
+    });
+    fin.addShape(pptx.ShapeType.line, {
+      x: 0.7,
+      y: 1.5,
+      w: 1.2,
+      h: 0,
+      line: { color: ORANGE, width: 3 },
+    });
+
+    let finY = 1.95;
+
+    // 近三年收入（大字展示）
+    const revenue = (fd.revenue ?? []).slice(-3);
+    if (revenue.length > 0) {
+      fin.addText("近三年收入", {
+        x: 0.7,
+        y: finY,
+        w: 11.9,
+        h: 0.4,
+        fontSize: 14,
+        bold: true,
+        color: INK_SOFT,
+      });
+      revenue.forEach((r, i) => {
+        const bx = 0.7 + i * 4.05;
+        fin.addText(r.year, {
+          x: bx,
+          y: finY + 0.5,
+          w: 3.8,
+          h: 0.4,
+          fontSize: 14,
+          color: INK_SOFT,
+        });
+        fin.addText(`${r.value} ${r.unit}`, {
+          x: bx,
+          y: finY + 0.85,
+          w: 3.8,
+          h: 0.8,
+          fontSize: 32,
+          bold: true,
+          color: NAVY,
+        });
+      });
+      finY += 2.0;
+    }
+
+    // 估值信息
+    const valuation = fd.valuation ?? [];
+    if (valuation.length > 0) {
+      const latest = valuation[valuation.length - 1];
+      fin.addText("最新估值", {
+        x: 0.7,
+        y: finY,
+        w: 11.9,
+        h: 0.4,
+        fontSize: 14,
+        bold: true,
+        color: INK_SOFT,
+      });
+      fin.addText(
+        `${latest.value} ${latest.unit}${
+          latest.round ? `（${latest.round}）` : ""
+        }`,
+        {
+          x: 0.7,
+          y: finY + 0.4,
+          w: 11.9,
+          h: 0.7,
+          fontSize: 26,
+          bold: true,
+          color: ORANGE,
+        }
+      );
+      finY += 1.5;
+    }
+
+    // 核心指标卡片（最多 4 个）
+    const metrics = (fd.key_metrics ?? []).slice(0, 4);
+    if (metrics.length > 0) {
+      fin.addText("核心指标", {
+        x: 0.7,
+        y: finY,
+        w: 11.9,
+        h: 0.4,
+        fontSize: 14,
+        bold: true,
+        color: INK_SOFT,
+      });
+      const mCardW = 2.9;
+      const mGap = 0.13;
+      metrics.forEach((m, i) => {
+        const mx = 0.7 + i * (mCardW + mGap);
+        const my = finY + 0.5;
+        fin.addShape(pptx.ShapeType.roundRect, {
+          x: mx,
+          y: my,
+          w: mCardW,
+          h: 1.3,
+          fill: { color: CARD_BG },
+          line: { color: "E5E7EB", width: 1 },
+          rectRadius: 0.08,
+        });
+        fin.addText(m.name, {
+          x: mx + 0.2,
+          y: my + 0.15,
+          w: mCardW - 0.4,
+          h: 0.4,
+          fontSize: 11,
+          color: INK_SOFT,
+        });
+        fin.addText(m.value, {
+          x: mx + 0.2,
+          y: my + 0.5,
+          w: mCardW - 0.4,
+          h: 0.6,
+          fontSize: 20,
+          bold: true,
+          color: NAVY,
+        });
+      });
+    }
+  }
+
+  // —— 内容页 ——
+  // 内容区：y 1.9 起，可用高度 5.2 英寸（下边界 7.1，留出页眉页脚）
+  const CONTENT_TOP = 1.9;
+  const CONTENT_MAX_H = 5.2;
+
+  function addContentSlide(section: Section, index: number) {
     const slide = pptx.addSlide();
     slide.background = { color: WHITE };
 
@@ -215,7 +356,7 @@ export async function GET(
       bold: true,
       color: ORANGE,
     });
-    slide.addText(section.title + pageSuffix, {
+    slide.addText(section.title, {
       x: 0.7,
       y: 0.8,
       w: 11.9,
@@ -232,32 +373,46 @@ export async function GET(
       line: { color: "E5E7EB", width: 1 },
     });
 
-    let cursorY = 1.9;
+    const cardW = 5.78;
+    const cardH = 1.5;
+    const gapX = 0.34;
+    const gapY = 0.3;
 
-    // 正文段落直接排版
-    if (paragraphs.length > 0) {
+    // 要点卡片：每行 2 列，最多 4 张（2 行 x 2 列），超出截断不显示
+    const visibleCards = section.bullets.slice(0, 4);
+    const cardRows = Math.ceil(visibleCards.length / 2);
+    const cardsBlockH =
+      cardRows > 0 ? cardRows * cardH + (cardRows - 1) * gapY : 0;
+
+    let cursorY = CONTENT_TOP;
+
+    // 正文段落：最多 4.0 英寸，且不挤占卡片区，超出固定高度的文字自动截断
+    if (section.paragraphs.length > 0) {
+      const paraH = Math.min(
+        4.0,
+        CONTENT_MAX_H - cardsBlockH - (cardsBlockH > 0 ? 0.2 : 0)
+      );
       slide.addText(
-        paragraphs.map((p) => ({ text: p, options: { breakLine: true } })),
+        section.paragraphs.map((p) => ({
+          text: p,
+          options: { breakLine: true },
+        })),
         {
           x: 0.7,
           y: cursorY,
           w: 11.9,
-          h: 2.4,
+          h: paraH,
           fontSize: 14,
           color: INK_SOFT,
           lineSpacingMultiple: 1.3,
           valign: "top",
         }
       );
-      cursorY += 2.6;
+      cursorY += paraH + 0.2;
     }
 
-    // 要点转卡片网格（两列）
-    const cardW = 5.78;
-    const cardH = 1.5;
-    const gapX = 0.34;
-    const gapY = 0.3;
-    bulletPage.forEach((b, i) => {
+    // 要点卡片网格
+    visibleCards.forEach((b, i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
       const cx = 0.7 + col * (cardW + gapX);
@@ -292,25 +447,7 @@ export async function GET(
   }
 
   sections.forEach((section, index) => {
-    const bullets = section.bullets;
-    if (bullets.length <= CARDS_PER_SLIDE) {
-      addContentSlide(section, index, bullets, section.paragraphs, "");
-    } else {
-      // 卡片过多时分页
-      for (let p = 0; p * CARDS_PER_SLIDE < bullets.length; p++) {
-        const page = bullets.slice(
-          p * CARDS_PER_SLIDE,
-          (p + 1) * CARDS_PER_SLIDE
-        );
-        addContentSlide(
-          section,
-          index,
-          page,
-          p === 0 ? section.paragraphs : [],
-          p === 0 ? "" : `（续 ${p + 1}）`
-        );
-      }
-    }
+    addContentSlide(section, index);
   });
 
   // —— 结尾页 ——
