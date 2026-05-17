@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ApiKeyConfig } from "./ApiKeyConfig";
 import { FinancialCharts } from "./FinancialCharts";
 import { stashJudgmentPoints } from "@/lib/clientAI";
 import type { FinancialData } from "@/lib/types";
@@ -33,7 +32,6 @@ export function ProjectDetail({
   const [points, setPoints] = useState<string[]>(
     initialPoints.length > 0 ? initialPoints : ["", "", ""]
   );
-  const [hasCreds, setHasCreds] = useState(false);
   const [error, setError] = useState("");
 
   // 财务数据
@@ -44,10 +42,6 @@ export function ProjectDetail({
   const [finError, setFinError] = useState("");
 
   async function handleExtractFinancials() {
-    if (!hasCreds) {
-      setError("请先配置 API Key");
-      return;
-    }
     setError("");
     setFinError("");
     setFinLoading(true);
@@ -82,10 +76,6 @@ export function ProjectDetail({
     const filled = points.map((p) => p.trim()).filter(Boolean);
     if (filled.length < 3 || filled.length > 10) {
       setError("请输入 3–10 条判断要点");
-      return;
-    }
-    if (!hasCreds) {
-      setError("请先配置 API Key");
       return;
     }
     setError("");
@@ -169,21 +159,18 @@ export function ProjectDetail({
             )}
           </div>
 
-          <ApiKeyConfig onChange={setHasCreds} />
-
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex gap-2">
             <button
               onClick={handleGenerate}
-              disabled={!hasCreds}
               className="flex-1 rounded-md bg-accent py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               生成分析报告
             </button>
             <button
               onClick={handleExtractFinancials}
-              disabled={!hasCreds || finLoading}
+              disabled={finLoading}
               className="rounded-md border border-line px-4 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-surface disabled:opacity-50"
             >
               {finLoading ? "提取中…" : "提取财务数据"}
