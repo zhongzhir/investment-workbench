@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import { extractText } from "unpdf";
+import { extractText, getDocumentProxy } from "unpdf";
 
 // 文档解析：从 PDF / Word 提取纯文本，供 AI 与知识库使用。
 // 仅在服务端运行（API 路由内调用）。
@@ -37,9 +37,11 @@ export async function parseDocument(
   if (fileType === "pdf") {
     // unpdf：专为 serverless 环境设计的 PDF 文本提取
     console.log("[parser] unpdf extractText 开始，buffer大小:", buffer.length);
-    const { text: pages } = await extractText(new Uint8Array(buffer), {
-      mergePages: true,
+    const pdf = await getDocumentProxy(new Uint8Array(buffer), {
+      cMapUrl: "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/",
+      cMapPacked: true,
     });
+    const { text: pages } = await extractText(pdf, { mergePages: true });
     text = Array.isArray(pages) ? pages.join("\n") : String(pages);
     console.log("[parser] extractText 完成，文本长度:", text.length);
   } else {

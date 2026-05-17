@@ -64,6 +64,13 @@ export async function POST(
     );
   }
 
+  if (parsed.charCount === 0) {
+    return NextResponse.json(
+      { error: "未能从文档中提取到文字，请确认该 PDF 非扫描件，或尝试转换为可选中文字的 PDF 格式" },
+      { status: 422 }
+    );
+  }
+
   // 落盘保存原始文件（本地开发；生产可替换为对象存储）
   let fileUrl: string | null = null;
   try {
