@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { parseDocument } from "@/lib/parser";
+import { decrypt } from "@/lib/crypto";
+import { processDocumentChunks } from "@/lib/documentChunks";
 
 export const maxDuration = 120;
 
@@ -95,9 +97,34 @@ export async function POST(
     ]
   );
 
+  const documentId = rows[0].id;
+
+  // 切分并向量化文档（await 确保 Vercel 上可靠写入）
+  const userRows = await query<{
+    ai_provider: string | null;
+    api_key_encrypted: string | null;
+  }>("SELECT ai_provider, api_key_encrypted FROM users WHERE id = $1", [
+    session.user.id,
+  ]);
+  let apiKey: string | null = null;
+  if (userRows[0]?.api_key_encrypted) {
+    try {
+      apiKey = decrypt(userRows[0].api_key_encrypted);
+    } catch {
+      apiKey = null;
+    }
+  }
+  await processDocumentChunks(
+    documentId,
+    session.user.id,
+    parsed.text,
+    userRows[0]?.ai_provider ?? null,
+    apiKey
+  );
+
   return NextResponse.json(
     {
-      id: rows[0].id,
+      id: documentId,
       filename,
       charCount: parsed.charCount,
     },

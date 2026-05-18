@@ -81,10 +81,21 @@ export async function POST(req: NextRequest) {
     [session.user.id, question]
   );
   const retrievedChunks: Chunk[] = [...ftsRows];
+  const seen = new Set(retrievedChunks.map((c) => c.content));
+  const addChunks = (rows: Chunk[], weight: number) => {
+    for (const row of rows) {
+      const chunk = { ...row, score: row.score * weight };
+      if (!seen.has(chunk.content)) {
+        retrievedChunks.push(chunk);
+        seen.add(chunk.content);
+      }
+    }
+  };
 
   // 2. 向量检索（有 embedding 支持时补充）
+  let embResult: Awaited<ReturnType<typeof getEmbedding>> = null;
   if (apiKey && user?.ai_provider) {
-    const embResult = await getEmbedding(question, user.ai_provider, apiKey);
+    embResult = await getEmbedding(question, user.ai_provider, apiKey);
     if (embResult) {
       const vectorRows = await query<Chunk>(
         `SELECT content, source_type,
@@ -97,15 +108,37 @@ export async function POST(req: NextRequest) {
         [session.user.id, `[${embResult.vector.join(",")}]`]
       );
       // 合并去重，向量结果得分加权
-      const seen = new Set(retrievedChunks.map((c) => c.content));
-      for (const row of vectorRows) {
-        const chunk = { ...row, score: row.score * 1.2 };
-        if (!seen.has(chunk.content)) {
-          retrievedChunks.push(chunk);
-          seen.add(chunk.content);
-        }
-      }
+      addChunks(vectorRows, 1.2);
     }
+  }
+
+  // 3. 文档分块检索（document_chunks）：优先向量，否则回退全文 ILIKE
+  if (embResult) {
+    const chunkRows = await query<{ content: string; score: number }>(
+      `SELECT content,
+              1 - (embedding <=> $2::vector) AS score
+         FROM document_chunks
+        WHERE user_id = $1
+          AND embedding IS NOT NULL
+        ORDER BY embedding <=> $2::vector
+        LIMIT 6`,
+      [session.user.id, `[${embResult.vector.join(",")}]`]
+    );
+    addChunks(
+      chunkRows.map((r) => ({ ...r, source_type: "document" })),
+      1.2
+    );
+  } else {
+    const chunkRows = await query<{ content: string }>(
+      `SELECT content FROM document_chunks
+        WHERE user_id = $1 AND content ILIKE $2
+        LIMIT 6`,
+      [session.user.id, `%${question}%`]
+    );
+    addChunks(
+      chunkRows.map((r) => ({ content: r.content, source_type: "document", score: 0.5 })),
+      1
+    );
   }
 
   // 按得分排序，取前 6 条作为上下文
@@ -119,7 +152,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 3. AI 综合回答（流式）
+  // 4. AI 综合回答（流式）
   if (!apiKey) {
     return NextResponse.json({
       answer: "请先在设置页配置 AI API Key，以启用智能问答。",
