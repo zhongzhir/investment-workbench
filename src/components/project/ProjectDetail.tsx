@@ -6,10 +6,27 @@ import { useRouter } from "next/navigation";
 import { FinancialCharts } from "./FinancialCharts";
 import { StageProgress, type Judgment } from "./StageProgress";
 import { DecisionTools } from "./DecisionTools";
+import { FileUploader, type UploadResult } from "@/components/shared/FileUploader";
 import { stashJudgmentPoints } from "@/lib/clientAI";
 import type { FinancialData } from "@/lib/types";
 
 type Tab = "analysis" | "decision";
+
+export interface DocMeta {
+  filename: string;
+  chars: number;
+  fileType: string;
+  parseStatus: string;
+  uploadedAt: string;
+}
+
+const FILE_TYPE_ICON: Record<string, string> = {
+  pdf: "📕",
+  docx: "📘",
+  pptx: "📙",
+  xlsx: "📗",
+  xls: "📗",
+};
 
 interface Props {
   projectId: string;
@@ -17,7 +34,7 @@ interface Props {
   processStage: string;
   judgments: Judgment[];
   bpText: string;
-  docMeta: { filename: string; chars: number }[];
+  docMeta: DocMeta[];
   initialPoints: string[];
   latestReportId: string | null;
   initialFinancialData: FinancialData | null;
@@ -37,6 +54,16 @@ export function ProjectDetail({
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("analysis");
+
+  // 新文件上传完成提示
+  const [newUpload, setNewUpload] = useState(false);
+
+  function handleUploadComplete(results: UploadResult[]) {
+    if (results.some((r) => r.status === "done")) {
+      setNewUpload(true);
+      router.refresh();
+    }
+  }
 
   // 判断要点行：沿用已保存的，否则给 3 个空行
   const [points, setPoints] = useState<string[]>(
@@ -151,6 +178,56 @@ export function ProjectDetail({
 
       {tab === "analysis" && (
       <>
+      {/* 项目文档：多文件上传 */}
+      <div className="mt-6 rounded-lg border border-line bg-surface p-5">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+          项目文档
+        </h2>
+        <div className="mt-3">
+          <FileUploader
+            target="project"
+            projectId={projectId}
+            onUploadComplete={handleUploadComplete}
+          />
+        </div>
+
+        {newUpload && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-accent-soft px-3 py-2 text-xs text-accent">
+            <span>新文件已解析完成。</span>
+            <button
+              onClick={handleGenerate}
+              className="shrink-0 font-medium hover:underline"
+            >
+              重新生成分析报告 →
+            </button>
+          </div>
+        )}
+
+        {docMeta.length > 0 && (
+          <ul className="mt-3 space-y-1">
+            {docMeta.map((d, i) => (
+              <li
+                key={i}
+                className="flex items-center gap-2 text-xs text-ink-soft"
+              >
+                <span>{FILE_TYPE_ICON[d.fileType] ?? "📄"}</span>
+                <span className="flex-1 truncate text-ink">{d.filename}</span>
+                <span className="text-ink-faint">
+                  {new Date(d.uploadedAt).toLocaleDateString("zh-CN")}
+                </span>
+                <span
+                  className={
+                    d.parseStatus === "done" ? "text-accent" : "text-ink-faint"
+                  }
+                >
+                  {d.parseStatus === "done" ? "已解析" : d.parseStatus}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         {/* 左：BP 文本 */}
         <section>

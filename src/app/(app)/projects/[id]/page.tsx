@@ -18,6 +18,9 @@ interface DocRow {
   filename: string;
   chars: number;
   extracted_text: string | null;
+  file_type: string;
+  parse_status: string;
+  created_at: string;
 }
 
 export default async function ProjectDetailPage({
@@ -65,7 +68,7 @@ export default async function ProjectDetailPage({
   const docs = await query<DocRow>(
     `SELECT filename,
             COALESCE(char_length(extracted_text), 0) AS chars,
-            extracted_text
+            extracted_text, file_type, parse_status, created_at
        FROM documents
       WHERE project_id = $1
       ORDER BY created_at ASC`,
@@ -89,7 +92,13 @@ export default async function ProjectDetailPage({
       processStage={processStage}
       judgments={judgments}
       bpText={bpText}
-      docMeta={docs.map((d) => ({ filename: d.filename, chars: d.chars }))}
+      docMeta={docs.map((d) => ({
+        filename: d.filename,
+        chars: d.chars,
+        fileType: d.file_type,
+        parseStatus: d.parse_status,
+        uploadedAt: d.created_at,
+      }))}
       initialPoints={
         Array.isArray(project.judgment_points) ? project.judgment_points : []
       }

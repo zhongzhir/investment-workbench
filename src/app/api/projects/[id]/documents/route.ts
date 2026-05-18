@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { parseDocument } from "@/lib/parser";
+import { parseFile } from "@/lib/fileParser";
 import { decrypt } from "@/lib/crypto";
 import { processDocumentChunks } from "@/lib/documentChunks";
+
+const SUPPORTED_TYPES = ["pdf", "docx", "pptx", "xlsx", "xls"];
 
 export const maxDuration = 120;
 
@@ -38,10 +40,10 @@ export async function POST(
     return NextResponse.json({ error: "缺少文件信息" }, { status: 400 });
   }
 
-  const fileType = fileTypeRaw as "pdf" | "docx" | null;
-  if (!fileType || !["pdf", "docx"].includes(fileType)) {
+  const fileType = fileTypeRaw ?? "";
+  if (!SUPPORTED_TYPES.includes(fileType)) {
     return NextResponse.json(
-      { error: "仅支持 PDF 与 Word(.docx) 格式" },
+      { error: "仅支持 PDF、Word、PPT、Excel 格式" },
       { status: 400 }
     );
   }
@@ -60,7 +62,7 @@ export async function POST(
   let parsed;
   console.log("[documents] 开始解析，fileType:", fileType, "bufferSize:", buffer.length);
   try {
-    parsed = await parseDocument(buffer, fileType);
+    parsed = await parseFile(buffer, fileType, filename);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : "";
@@ -70,9 +72,9 @@ export async function POST(
     );
   }
 
-  if (parsed.charCount === 0) {
+  if (parsed.text.length === 0) {
     return NextResponse.json(
-      { error: "未能从文档中提取到文字，请确认该 PDF 非扫描件，或尝试转换为可选中文字的 PDF 格式" },
+      { error: "未能从文档中提取到文字，请确认文件非扫描件/纯图片，或转换为可选中文字的格式后重试" },
       { status: 422 }
     );
   }
@@ -126,7 +128,8 @@ export async function POST(
     {
       id: documentId,
       filename,
-      charCount: parsed.charCount,
+      charCount: parsed.text.length,
+      warning: parsed.warning,
     },
     { status: 201 }
   );

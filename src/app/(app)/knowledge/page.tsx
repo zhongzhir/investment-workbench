@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { FileUploader } from "@/components/shared/FileUploader";
+import {
+  KNOWLEDGE_CATEGORIES,
+  categoryLabel,
+} from "@/lib/knowledgeCategories";
 
 interface KBEntry {
   id: string;
@@ -8,8 +13,17 @@ interface KBEntry {
   source_type: string;
   tags: string[];
   embedding_model: string | null;
+  metadata?: { fileName?: string; fileType?: string } | null;
   created_at: string;
 }
+
+const FILE_TYPE_LABEL: Record<string, string> = {
+  pdf: "PDF",
+  docx: "Word",
+  pptx: "PPT",
+  xlsx: "Excel",
+  xls: "Excel",
+};
 
 interface Source {
   content: string;
@@ -31,6 +45,11 @@ export default function KnowledgePage() {
   // 录入
   const [newContent, setNewContent] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // 文件上传分类
+  const [category, setCategory] = useState<string>(
+    KNOWLEDGE_CATEGORIES[0].value
+  );
 
   // 搜索
   const [question, setQuestion] = useState("");
@@ -179,6 +198,34 @@ export default function KnowledgePage() {
         )}
       </div>
 
+      {/* 文件上传区 */}
+      <div className="mb-8 rounded-lg border border-line bg-white p-5">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
+          上传文件
+        </p>
+        <div className="mb-3">
+          <label className="mb-1 block text-xs text-ink-soft">分类</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="rounded border border-line px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-[#0D1B3E]"
+          >
+            {KNOWLEDGE_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <FileUploader
+          target="knowledge"
+          category={category}
+          onUploadComplete={(results) => {
+            if (results.some((r) => r.status === "done")) fetchEntries();
+          }}
+        />
+      </div>
+
       {/* 录入区 */}
       <div className="mb-8 rounded-lg border border-line bg-white p-5">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-faint">
@@ -229,8 +276,21 @@ export default function KnowledgePage() {
                   </p>
                   <div className="flex shrink-0 flex-col items-end gap-1">
                     <span className="rounded bg-[#E8ECF4] px-1.5 py-0.5 text-xs text-ink-faint">
-                      {SOURCE_LABEL[entry.source_type] ?? entry.source_type}
+                      {entry.metadata?.fileType
+                        ? `文件上传 · ${
+                            FILE_TYPE_LABEL[entry.metadata.fileType] ??
+                            entry.metadata.fileType
+                          }`
+                        : entry.source_type === "manual"
+                          ? "手动录入"
+                          : SOURCE_LABEL[entry.source_type] ??
+                            entry.source_type}
                     </span>
+                    {entry.tags?.length > 0 && (
+                      <span className="rounded bg-[#E8ECF4] px-1.5 py-0.5 text-xs text-ink-faint">
+                        {categoryLabel(entry.tags[0])}
+                      </span>
+                    )}
                     {entry.embedding_model && (
                       <span className="text-xs text-ink-faint" title="已向量化">
                         ⚡
