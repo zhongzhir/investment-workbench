@@ -5,8 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FinancialCharts } from "./FinancialCharts";
 import { StageProgress, type Judgment } from "./StageProgress";
+import { DecisionTools } from "./DecisionTools";
 import { stashJudgmentPoints } from "@/lib/clientAI";
 import type { FinancialData } from "@/lib/types";
+
+type Tab = "analysis" | "decision";
 
 interface Props {
   projectId: string;
@@ -32,6 +35,8 @@ export function ProjectDetail({
   initialFinancialData,
 }: Props) {
   const router = useRouter();
+
+  const [tab, setTab] = useState<Tab>("analysis");
 
   // 判断要点行：沿用已保存的，否则给 3 个空行
   const [points, setPoints] = useState<string[]>(
@@ -115,7 +120,38 @@ export function ProjectDetail({
         />
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
+      {/* Tab 切换 */}
+      <div className="mt-8 flex gap-1 border-b border-line">
+        {([
+          ["analysis", "项目分析"],
+          ["decision", "决策辅助"],
+        ] as [Tab, string][]).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm transition-colors ${
+              tab === id
+                ? "border-accent font-medium text-accent"
+                : "border-transparent text-ink-soft hover:text-ink"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "decision" && (
+        <div className="mt-6">
+          <DecisionTools
+            projectId={projectId}
+            processStage={processStage}
+          />
+        </div>
+      )}
+
+      {tab === "analysis" && (
+      <>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         {/* 左：BP 文本 */}
         <section>
           <h2 className="text-xs font-medium uppercase tracking-wide text-ink-faint">
@@ -208,6 +244,8 @@ export function ProjectDetail({
             <FinancialCharts data={financials} />
           ) : null}
         </div>
+      )}
+      </>
       )}
     </div>
   );
