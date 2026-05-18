@@ -97,6 +97,17 @@ export function LoginForm({ githubEnabled }: { githubEnabled: boolean }) {
           注册
         </Link>
       </p>
+
+      <p className="mt-4 text-center text-xs text-ink-faint">
+        使用即表示同意{" "}
+        <Link href="/legal/terms" className="hover:underline">
+          用户协议
+        </Link>{" "}
+        ·{" "}
+        <Link href="/legal/disclaimer" className="hover:underline">
+          免责声明
+        </Link>
+      </p>
     </div>
   );
 }

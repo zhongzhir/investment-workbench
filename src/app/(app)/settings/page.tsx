@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { ApiKeyConfig } from "@/components/project/ApiKeyConfig";
+import { ApiKeyGuide } from "@/components/project/ApiKeyGuide";
 
 // 设置页：AI 模型与 API Key 管理。
 export default function SettingsPage() {
@@ -16,7 +18,20 @@ export default function SettingsPage() {
         <div className="mt-4">
           <ApiKeyConfig />
         </div>
+
+        <ApiKeyGuide />
       </section>
+
+      <footer className="mt-12 border-t border-line pt-6 text-xs text-ink-faint">
+        使用即表示同意{" "}
+        <Link href="/legal/terms" className="hover:underline">
+          用户协议
+        </Link>{" "}
+        ·{" "}
+        <Link href="/legal/disclaimer" className="hover:underline">
+          免责声明
+        </Link>
+      </footer>
     </div>
   );
 }
