@@ -1,0 +1,121 @@
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { query } from "@/lib/db";
+import { isValidSkillCategory, SKILL_STAGES } from "@/lib/skills";
+
+interface CustomSkillRow {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  prompt_template: string;
+  applicable_stages: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+function normalizeStages(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter(
+    (s): s is string =>
+      typeof s === "string" && (SKILL_STAGES as readonly string[]).includes(s)
+  );
+}
+
+// PUT /api/skills/custom/[id] — 更新自建 SKILL
+export async function PUT(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
+    let body: {
+      name?: string;
+      description?: string;
+      category?: string;
+      prompt_template?: string;
+      applicable_stages?: unknown;
+    };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+    }
+
+    const name = body.name?.trim();
+    const promptTemplate = body.prompt_template?.trim();
+    if (!name) {
+      return NextResponse.json({ error: "请填写 SKILL 名称" }, { status: 422 });
+    }
+    if (!promptTemplate) {
+      return NextResponse.json(
+        { error: "请填写 Prompt 模板" },
+        { status: 422 }
+      );
+    }
+    const category =
+      body.category && isValidSkillCategory(body.category)
+        ? body.category
+        : null;
+
+    const rows = await query<CustomSkillRow>(
+      `UPDATE user_custom_skills
+          SET name = $1, description = $2, category = $3,
+              prompt_template = $4, applicable_stages = $5, updated_at = NOW()
+        WHERE id = $6 AND user_id = $7
+        RETURNING id, name, description, category, prompt_template,
+                  applicable_stages, created_at, updated_at`,
+      [
+        name,
+        body.description?.trim() || null,
+        category,
+        promptTemplate,
+        normalizeStages(body.applicable_stages),
+        params.id,
+        session.user.id,
+      ]
+    );
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "SKILL 不存在" }, { status: 404 });
+    }
+    return NextResponse.json({ skill: rows[0] });
+  } catch (e) {
+    console.error("[skills/custom/:id] PUT 失败:", e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "更新失败" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/skills/custom/[id] — 删除自建 SKILL
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+    const rows = await query<{ id: string }>(
+      "DELETE FROM user_custom_skills WHERE id = $1 AND user_id = $2 RETURNING id",
+      [params.id, session.user.id]
+    );
+    if (rows.length === 0) {
+      return NextResponse.json({ error: "SKILL 不存在" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("[skills/custom/:id] DELETE 失败:", e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "删除失败" },
+      { status: 500 }
+    );
+  }
+}

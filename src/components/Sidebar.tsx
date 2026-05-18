@@ -9,6 +9,7 @@ const NAV = [
   { href: "/", label: "首页", desc: "概览" },
   { href: "/projects", label: "项目分析", desc: "上传 BP，生成分析报告" },
   { href: "/knowledge", label: "知识库", desc: "私有知识沉淀与检索" },
+  { href: "/skills", label: "SKILL 市场", desc: "投资分析技能库" },
   { href: "/archive", label: "投后归档", desc: "报告归档与导出" },
   { href: "/settings", label: "设置", desc: "AI 模型与 API Key" },
 ];
