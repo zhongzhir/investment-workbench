@@ -8,6 +8,7 @@ import { StageProgress, type Judgment } from "./StageProgress";
 import { DecisionTools } from "./DecisionTools";
 import { FileUploader, type UploadResult } from "@/components/shared/FileUploader";
 import { stashJudgmentPoints } from "@/lib/clientAI";
+import { outcomeDef } from "@/lib/outcome";
 import type { FinancialData } from "@/lib/types";
 
 type Tab = "analysis" | "decision";
@@ -32,6 +33,8 @@ interface Props {
   projectId: string;
   projectName: string;
   processStage: string;
+  outcome: string | null;
+  outcomeNote: string | null;
   judgments: Judgment[];
   bpText: string;
   docMeta: DocMeta[];
@@ -44,6 +47,8 @@ export function ProjectDetail({
   projectId,
   projectName,
   processStage,
+  outcome,
+  outcomeNote,
   judgments,
   bpText,
   docMeta,
@@ -124,7 +129,18 @@ export function ProjectDetail({
     <div className="mx-auto max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">{projectName}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-ink">{projectName}</h1>
+            {outcome && outcome !== "pending" && (
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-medium ${
+                  outcomeDef(outcome).badgeClass
+                }`}
+              >
+                {outcomeDef(outcome).icon} {outcomeDef(outcome).label}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-xs text-ink-faint">
             填写判断要点并生成分析报告
           </p>
@@ -144,6 +160,8 @@ export function ProjectDetail({
           projectId={projectId}
           initialStage={processStage}
           initialJudgments={judgments}
+          initialOutcome={outcome}
+          initialOutcomeNote={outcomeNote}
         />
       </div>
 

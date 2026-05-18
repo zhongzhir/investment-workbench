@@ -51,6 +51,20 @@ export default async function ProjectDetailPage({
     console.error("[project] process_stage 读取失败，使用默认值:", e);
   }
 
+  // outcome 字段来自迁移 008，同样容错处理。
+  let outcome: string | null = null;
+  let outcomeNote: string | null = null;
+  try {
+    const outcomeRows = await query<{
+      outcome: string | null;
+      outcome_note: string | null;
+    }>("SELECT outcome, outcome_note FROM projects WHERE id = $1", [params.id]);
+    outcome = outcomeRows[0]?.outcome ?? null;
+    outcomeNote = outcomeRows[0]?.outcome_note ?? null;
+  } catch (e) {
+    console.error("[project] outcome 读取失败，使用默认值:", e);
+  }
+
   let judgments: Judgment[] = [];
   try {
     judgments = await query<Judgment>(
@@ -90,6 +104,8 @@ export default async function ProjectDetailPage({
       projectId={project.id}
       projectName={project.name}
       processStage={processStage}
+      outcome={outcome}
+      outcomeNote={outcomeNote}
       judgments={judgments}
       bpText={bpText}
       docMeta={docs.map((d) => ({

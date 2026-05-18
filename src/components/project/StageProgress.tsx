@@ -8,6 +8,7 @@ import {
   STAGE_LABELS,
   type Stage,
 } from "@/lib/stages";
+import { OUTCOMES } from "@/lib/outcome";
 
 export interface Judgment {
   id: string;
@@ -24,6 +25,8 @@ interface Props {
   projectId: string;
   initialStage: string;
   initialJudgments: Judgment[];
+  initialOutcome: string | null;
+  initialOutcomeNote: string | null;
 }
 
 const EMPTY_FORM = {
@@ -38,6 +41,8 @@ export function StageProgress({
   projectId,
   initialStage,
   initialJudgments,
+  initialOutcome,
+  initialOutcomeNote,
 }: Props) {
   const router = useRouter();
   const [stage, setStage] = useState<string>(initialStage);
@@ -47,6 +52,33 @@ export function StageProgress({
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // 投资结果标记
+  const [outcome, setOutcome] = useState<string>(initialOutcome || "pending");
+  const [outcomeNote, setOutcomeNote] = useState<string>(
+    initialOutcomeNote || ""
+  );
+  const [outcomeSaving, setOutcomeSaving] = useState(false);
+
+  async function saveOutcome() {
+    setOutcomeSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/outcome`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome, outcome_note: outcomeNote }),
+      });
+      if (!res.ok) {
+        throw new Error((await res.json()).error || "保存失败");
+      }
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setOutcomeSaving(false);
+    }
+  }
 
   const currentFlowIndex = FLOW_STAGES.indexOf(stage as (typeof FLOW_STAGES)[number]);
   const isTerminal = (TERMINAL_STAGES as readonly string[]).includes(stage);
@@ -190,6 +222,38 @@ export function StageProgress({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 投资结果标记 */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+        <span className="text-xs font-medium text-ink-soft">投资结果：</span>
+        <select
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value)}
+          disabled={outcomeSaving}
+          className="rounded-md border border-line px-2 py-1.5 text-xs outline-none focus:border-accent"
+        >
+          {OUTCOMES.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.icon ? `${o.icon} ` : ""}
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <input
+          value={outcomeNote}
+          onChange={(e) => setOutcomeNote(e.target.value)}
+          disabled={outcomeSaving}
+          placeholder="备注（可选）"
+          className="min-w-[160px] flex-1 rounded-md border border-line px-2 py-1.5 text-xs outline-none placeholder:text-ink-faint focus:border-accent"
+        />
+        <button
+          onClick={saveOutcome}
+          disabled={outcomeSaving}
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {outcomeSaving ? "保存中…" : "保存"}
+        </button>
       </div>
 
       {/* 判断记录历史 */}
