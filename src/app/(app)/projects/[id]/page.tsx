@@ -58,7 +58,11 @@ export default async function ProjectDetailPage({
     const outcomeRows = await query<{
       outcome: string | null;
       outcome_note: string | null;
-    }>("SELECT outcome, outcome_note FROM projects WHERE id = $1", [params.id]);
+      outcome_at: string | null;
+    }>(
+      "SELECT outcome, outcome_note, outcome_at FROM projects WHERE id = $1",
+      [params.id]
+    );
     outcome = outcomeRows[0]?.outcome ?? null;
     outcomeNote = outcomeRows[0]?.outcome_note ?? null;
   } catch (e) {
