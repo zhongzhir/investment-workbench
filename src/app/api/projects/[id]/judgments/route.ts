@@ -27,25 +27,33 @@ export async function GET(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSession();
-  if (!session?.user) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  try {
+    const session = await getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
+    if (!(await assertOwned(params.id, session.user.id))) {
+      return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+    }
+
+    const rows = await query<JudgmentRow>(
+      `SELECT id, stage, bull_case, bear_case, founder_assessment,
+              key_hypothesis, confidence_level, created_at
+         FROM investment_judgments
+        WHERE project_id = $1 AND user_id = $2
+        ORDER BY created_at DESC`,
+      [params.id, session.user.id]
+    );
+
+    return NextResponse.json({ judgments: rows });
+  } catch (e) {
+    console.error("[judgments] GET 失败:", e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "判断记录读取失败" },
+      { status: 500 }
+    );
   }
-
-  if (!(await assertOwned(params.id, session.user.id))) {
-    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
-  }
-
-  const rows = await query<JudgmentRow>(
-    `SELECT id, stage, bull_case, bear_case, founder_assessment,
-            key_hypothesis, confidence_level, created_at
-       FROM investment_judgments
-      WHERE project_id = $1 AND user_id = $2
-      ORDER BY created_at DESC`,
-    [params.id, session.user.id]
-  );
-
-  return NextResponse.json({ judgments: rows });
 }
 
 // POST /api/projects/[id]/judgments — 新增一条判断记录
@@ -53,65 +61,93 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await getSession();
-  if (!session?.user) {
-    return NextResponse.json({ error: "未登录" }, { status: 401 });
-  }
-
-  if (!(await assertOwned(params.id, session.user.id))) {
-    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
-  }
-
-  let body: {
-    stage?: string;
-    bull_case?: string;
-    bear_case?: string;
-    founder_assessment?: string;
-    key_hypothesis?: string;
-    confidence_level?: number;
-  };
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
-  }
-
-  if (!isValidStage(body.stage)) {
-    return NextResponse.json({ error: "阶段值不合法" }, { status: 422 });
-  }
-
-  let confidence: number | null = null;
-  if (body.confidence_level != null) {
-    const c = Number(body.confidence_level);
-    if (!Number.isInteger(c) || c < 1 || c > 5) {
-      return NextResponse.json({ error: "信心评分须为 1-5" }, { status: 422 });
+    const session = await getSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
-    confidence = c;
+
+    if (!(await assertOwned(params.id, session.user.id))) {
+      return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+    }
+
+    let body: {
+      stage?: string;
+      bull_case?: string;
+      bear_case?: string;
+      founder_assessment?: string;
+      key_hypothesis?: string;
+      confidence_level?: number;
+    };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+    }
+
+    if (!isValidStage(body.stage)) {
+      return NextResponse.json({ error: "阶段值不合法" }, { status: 422 });
+    }
+
+    let confidence: number | null = null;
+    if (body.confidence_level != null) {
+      const c = Number(body.confidence_level);
+      if (!Number.isInteger(c) || c < 1 || c > 5) {
+        return NextResponse.json(
+          { error: "信心评分须为 1-5" },
+          { status: 422 }
+        );
+      }
+      confidence = c;
+    }
+
+    const norm = (v?: string) => {
+      const t = v?.trim();
+      return t ? t : null;
+    };
+    const bull = norm(body.bull_case);
+    const bear = norm(body.bear_case);
+    const founder = norm(body.founder_assessment);
+    const hypothesis = norm(body.key_hypothesis);
+
+    // content 在原始 schema 中为 NOT NULL；即使迁移 004 已放宽，
+    // 这里仍主动写入合成正文，确保 INSERT 不依赖迁移是否应用。
+    const content =
+      [
+        bull && `看好的理由：${bull}`,
+        bear && `主要顾虑：${bear}`,
+        founder && `对创始人的判断：${founder}`,
+        hypothesis && `关键待验证假设：${hypothesis}`,
+      ]
+        .filter(Boolean)
+        .join("\n") || "（未填写具体内容）";
+
+    const rows = await query<JudgmentRow>(
+      `INSERT INTO investment_judgments
+         (user_id, project_id, stage, content, bull_case, bear_case,
+          founder_assessment, key_hypothesis, confidence_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, stage, bull_case, bear_case, founder_assessment,
+                 key_hypothesis, confidence_level, created_at`,
+      [
+        session.user.id,
+        params.id,
+        body.stage,
+        content,
+        bull,
+        bear,
+        founder,
+        hypothesis,
+        confidence,
+      ]
+    );
+
+    return NextResponse.json({ judgment: rows[0] }, { status: 201 });
+  } catch (e) {
+    console.error("[judgments] POST 失败:", e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "判断记录保存失败" },
+      { status: 500 }
+    );
   }
-
-  const norm = (v?: string) => {
-    const t = v?.trim();
-    return t ? t : null;
-  };
-
-  const rows = await query<JudgmentRow>(
-    `INSERT INTO investment_judgments
-       (user_id, project_id, stage, bull_case, bear_case,
-        founder_assessment, key_hypothesis, confidence_level)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id, stage, bull_case, bear_case, founder_assessment,
-               key_hypothesis, confidence_level, created_at`,
-    [
-      session.user.id,
-      params.id,
-      body.stage,
-      norm(body.bull_case),
-      norm(body.bear_case),
-      norm(body.founder_assessment),
-      norm(body.key_hypothesis),
-      confidence,
-    ]
-  );
-
-  return NextResponse.json({ judgment: rows[0] }, { status: 201 });
 }
