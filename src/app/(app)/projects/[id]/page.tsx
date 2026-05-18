@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 interface ProjectRow {
   id: string;
   name: string;
-  process_stage: string;
   judgment_points: string[];
   financial_data: FinancialData | null;
 }
@@ -29,21 +28,39 @@ export default async function ProjectDetailPage({
   const session = await requireAuth();
 
   const projects = await query<ProjectRow>(
-    `SELECT id, name, process_stage, judgment_points, financial_data
+    `SELECT id, name, judgment_points, financial_data
        FROM projects WHERE id = $1 AND user_id = $2`,
     [params.id, session.user.id]
   );
   if (projects.length === 0) notFound();
   const project = projects[0];
 
-  const judgments = await query<Judgment>(
-    `SELECT id, stage, bull_case, bear_case, founder_assessment,
-            key_hypothesis, confidence_level, created_at
-       FROM investment_judgments
-      WHERE project_id = $1 AND user_id = $2
-      ORDER BY created_at DESC`,
-    [params.id, session.user.id]
-  );
+  // process_stage 与 investment_judgments 新字段来自迁移 004。
+  // 迁移可能尚未应用（或仅部分应用），此处容错处理以免整页 500。
+  let processStage = "screening";
+  try {
+    const stageRows = await query<{ process_stage: string | null }>(
+      "SELECT process_stage FROM projects WHERE id = $1",
+      [params.id]
+    );
+    processStage = stageRows[0]?.process_stage ?? "screening";
+  } catch (e) {
+    console.error("[project] process_stage 读取失败，使用默认值:", e);
+  }
+
+  let judgments: Judgment[] = [];
+  try {
+    judgments = await query<Judgment>(
+      `SELECT id, stage, bull_case, bear_case, founder_assessment,
+              key_hypothesis, confidence_level, created_at
+         FROM investment_judgments
+        WHERE project_id = $1 AND user_id = $2
+        ORDER BY created_at DESC`,
+      [params.id, session.user.id]
+    );
+  } catch (e) {
+    console.error("[project] 判断记录读取失败，使用空列表:", e);
+  }
 
   const docs = await query<DocRow>(
     `SELECT filename,
@@ -69,7 +86,7 @@ export default async function ProjectDetailPage({
     <ProjectDetail
       projectId={project.id}
       projectName={project.name}
-      processStage={project.process_stage}
+      processStage={processStage}
       judgments={judgments}
       bpText={bpText}
       docMeta={docs.map((d) => ({ filename: d.filename, chars: d.chars }))}
