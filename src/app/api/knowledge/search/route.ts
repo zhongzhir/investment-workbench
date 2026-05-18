@@ -141,18 +141,46 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 4. 检索相关项目的投资判断记录
+  const judgments = await query<{
+    stage: string;
+    bull_case: string | null;
+    bear_case: string | null;
+    founder_assessment: string | null;
+    key_hypothesis: string | null;
+    confidence_level: number | null;
+    created_at: string;
+    project_name: string;
+  }>(
+    `SELECT ij.stage, ij.bull_case, ij.bear_case,
+            ij.founder_assessment, ij.key_hypothesis,
+            ij.confidence_level, ij.created_at,
+            p.name AS project_name
+       FROM investment_judgments ij
+       JOIN projects p ON ij.project_id = p.id
+      WHERE ij.user_id = $1
+        AND (
+          p.name ILIKE $2
+          OR ij.bull_case ILIKE $2
+          OR ij.bear_case ILIKE $2
+        )
+      ORDER BY ij.created_at DESC
+      LIMIT 5`,
+    [session.user.id, `%${question}%`]
+  );
+
   // 按得分排序，取前 6 条作为上下文
   retrievedChunks.sort((a, b) => b.score - a.score);
   const context = retrievedChunks.slice(0, 6);
 
-  if (context.length === 0) {
+  if (context.length === 0 && judgments.length === 0) {
     return NextResponse.json({
       answer: "知识库中暂无相关内容，请先录入一些文档或笔记。",
       sources: [],
     });
   }
 
-  // 4. AI 综合回答（流式）
+  // 5. AI 综合回答（流式）
   if (!apiKey) {
     return NextResponse.json({
       answer: "请先在设置页配置 AI API Key，以启用智能问答。",
@@ -160,9 +188,29 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const contextText = context
+  let contextText = context
     .map((c, i) => `[${i + 1}] (来源: ${c.source_type ?? "未知"})\n${c.content}`)
     .join("\n\n---\n\n");
+
+  if (judgments.length > 0) {
+    const judgmentText = judgments
+      .map((j) => {
+        const parts = [
+          j.bull_case && `看好的理由：${j.bull_case}`,
+          j.bear_case && `主要顾虑：${j.bear_case}`,
+          j.founder_assessment && `对创始人的判断：${j.founder_assessment}`,
+          j.key_hypothesis && `关键待验证假设：${j.key_hypothesis}`,
+          j.confidence_level && `信心评分：${j.confidence_level}/5`,
+        ].filter(Boolean);
+        return `项目「${j.project_name}」·${j.stage} 阶段（${new Date(
+          j.created_at
+        ).toLocaleDateString("zh-CN")}）\n${parts.join("\n")}`;
+      })
+      .join("\n\n---\n\n");
+    contextText +=
+      (contextText ? "\n\n===== 相关投资判断记录 =====\n\n" : "") +
+      judgmentText;
+  }
 
   const provider = user?.ai_provider ?? "deepseek";
   const config = providerConfig[provider] ?? providerConfig.deepseek;

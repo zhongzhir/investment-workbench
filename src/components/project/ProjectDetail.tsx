@@ -4,12 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FinancialCharts } from "./FinancialCharts";
+import { StageProgress, type Judgment } from "./StageProgress";
 import { stashJudgmentPoints } from "@/lib/clientAI";
 import type { FinancialData } from "@/lib/types";
 
 interface Props {
   projectId: string;
   projectName: string;
+  processStage: string;
+  judgments: Judgment[];
   bpText: string;
   docMeta: { filename: string; chars: number }[];
   initialPoints: string[];
@@ -20,6 +23,8 @@ interface Props {
 export function ProjectDetail({
   projectId,
   projectName,
+  processStage,
+  judgments,
   bpText,
   docMeta,
   initialPoints,
@@ -100,6 +105,14 @@ export function ProjectDetail({
             查看已有报告
           </Link>
         )}
+      </div>
+
+      <div className="mt-6">
+        <StageProgress
+          projectId={projectId}
+          initialStage={processStage}
+          initialJudgments={judgments}
+        />
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
