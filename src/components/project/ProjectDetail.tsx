@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { FinancialCharts } from "./FinancialCharts";
 import { StageProgress, type Judgment } from "./StageProgress";
 import { DecisionTools } from "./DecisionTools";
+import { PostInvestment } from "./PostInvestment";
 import { FileUploader, type UploadResult } from "@/components/shared/FileUploader";
 import { stashJudgmentPoints } from "@/lib/clientAI";
 import { outcomeDef } from "@/lib/outcome";
 import type { FinancialData } from "@/lib/types";
 
-type Tab = "analysis" | "decision";
+type Tab = "analysis" | "decision" | "post";
 
 export interface DocMeta {
   filename: string;
@@ -170,6 +171,9 @@ export function ProjectDetail({
         {([
           ["analysis", "项目分析"],
           ["decision", "决策辅助"],
+          ...(outcome === "invested" || processStage === "post_investment"
+            ? ([["post", "投后管理"]] as [Tab, string][])
+            : []),
         ] as [Tab, string][]).map(([id, label]) => (
           <button
             key={id}
@@ -193,6 +197,8 @@ export function ProjectDetail({
           />
         </div>
       )}
+
+      {tab === "post" && <PostInvestment projectId={projectId} />}
 
       {tab === "analysis" && (
       <>
