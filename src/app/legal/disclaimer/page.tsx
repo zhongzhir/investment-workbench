@@ -9,7 +9,8 @@ const serif = {
 
 export default function DisclaimerPage() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12 text-ink" style={serif}>
+    <div className="min-h-screen bg-canvas">
+      <div className="mx-auto max-w-3xl px-6 py-12 text-ink" style={serif}>
       <h1 className="text-2xl font-semibold">免责声明</h1>
       <p className="mt-2 text-sm text-ink-faint">最后更新：2026年5月</p>
 
@@ -38,6 +39,7 @@ export default function DisclaimerPage() {
             等）。上述服务由对应服务商提供，本平台不对第三方服务的可用性、准确性及费用承担责任。
           </p>
         </section>
+      </div>
       </div>
     </div>
   );

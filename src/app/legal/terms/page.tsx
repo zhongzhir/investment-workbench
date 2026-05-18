@@ -9,7 +9,8 @@ const serif = {
 
 export default function TermsPage() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-12 text-ink" style={serif}>
+    <div className="min-h-screen bg-canvas">
+      <div className="mx-auto max-w-3xl px-6 py-12 text-ink" style={serif}>
       <h1 className="text-2xl font-semibold">Vestia 用户服务协议</h1>
       <p className="mt-2 text-sm text-ink-faint">最后更新：2026年5月</p>
 
@@ -68,6 +69,7 @@ export default function TermsPage() {
             本协议适用中华人民共和国法律。如发生争议，双方协商解决。
           </p>
         </section>
+      </div>
       </div>
     </div>
   );
