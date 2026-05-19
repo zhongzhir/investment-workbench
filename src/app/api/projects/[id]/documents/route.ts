@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { parseFile } from "@/lib/fileParser";
 import { processDocumentChunks } from "@/lib/documentChunks";
+import { extractExcelFinancials } from "@/lib/excelFinancials";
 
 const SUPPORTED_TYPES = ["pdf", "docx", "pptx", "xlsx", "xls"];
 
@@ -102,6 +103,22 @@ export async function POST(
 
   // 切分并向量化文档（await 确保 Vercel 上可靠写入）
   await processDocumentChunks(documentId, session.user.id, parsed.text);
+
+  // Excel：直接从单元格结构化提取财务数据并写入 projects.financial_data
+  if (fileType === "xlsx" || fileType === "xls") {
+    try {
+      const fin = extractExcelFinancials(buffer);
+      if (fin) {
+        await query("UPDATE projects SET financial_data = $1 WHERE id = $2", [
+          JSON.stringify(fin),
+          params.id,
+        ]);
+        console.log("[documents] Excel 财务数据已写入 financial_data");
+      }
+    } catch (e) {
+      console.error("[documents] Excel 财务提取失败:", e);
+    }
+  }
 
   return NextResponse.json(
     {

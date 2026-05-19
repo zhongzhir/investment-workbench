@@ -74,27 +74,52 @@ export interface KnowledgeBaseEntry {
   createdAt: string;
 }
 
-// AI 从 BP 提取的结构化财务数据
-export interface YearValue {
-  year: string;
+// AI / Excel 提取的结构化财务数据
+export type FinPointType = "actual" | "forecast";
+export type FinConfidence = "high" | "low";
+
+// 单个时间序列数据点（收入、利润、利润率等）
+export interface FinPoint {
+  year: number;
   value: number;
-  unit: string;
+  type: FinPointType;
+  confidence: FinConfidence;
+}
+
+// 关键指标（自由文本型）
+export interface FinKeyMetric {
+  label: string;
+  value: string;
+  year: number | null;
+  confidence: FinConfidence;
+  note: string;
+}
+
+export interface FinValuation {
+  round?: string;
+  year?: number | null;
+  value: number | string;
+  unit?: string;
+  confidence?: FinConfidence;
 }
 
 export interface FinancialData {
-  revenue: YearValue[];
-  growth_rate: YearValue[];
-  gross_margin: YearValue[];
-  users: YearValue[];
-  valuation: { round: string; value: number; unit: string }[];
-  funding_history: {
-    round: string;
-    amount: number;
-    unit: string;
-    year: string;
-  }[];
-  key_metrics: { name: string; value: string; date: string }[];
-  summary: string;
+  currency: string;
+  unit: string;
+  extraction_quality: "high" | "medium" | "low";
+  extraction_note: string;
+  revenue: FinPoint[];
+  ebitda: FinPoint[];
+  ebit: FinPoint[];
+  net_income: FinPoint[];
+  gross_margin: FinPoint[];
+  net_margin: FinPoint[];
+  headcount: FinPoint[];
+  customers: FinPoint[];
+  arr: FinPoint[];
+  mrr: FinPoint[];
+  valuation: FinValuation[];
+  key_metrics: FinKeyMetric[];
 }
 
 export interface Report {

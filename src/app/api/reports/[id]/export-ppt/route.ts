@@ -240,7 +240,7 @@ export async function GET(
       });
       revenue.forEach((r, i) => {
         const bx = 0.7 + i * 4.05;
-        fin.addText(r.year, {
+        fin.addText(String(r.year), {
           x: bx,
           y: finY + 0.5,
           w: 3.8,
@@ -248,7 +248,7 @@ export async function GET(
           fontSize: 14,
           color: INK_SOFT,
         });
-        fin.addText(`${r.value} ${r.unit}`, {
+        fin.addText(`${r.value} ${fd.unit ?? ""}`.trim(), {
           x: bx,
           y: finY + 0.85,
           w: 3.8,
@@ -275,9 +275,9 @@ export async function GET(
         color: INK_SOFT,
       });
       fin.addText(
-        `${latest.value} ${latest.unit}${
+        `${latest.value} ${latest.unit ?? ""}${
           latest.round ? `（${latest.round}）` : ""
-        }`,
+        }`.trim(),
         {
           x: 0.7,
           y: finY + 0.4,
@@ -317,7 +317,7 @@ export async function GET(
           line: { color: "E5E7EB", width: 1 },
           rectRadius: 0.08,
         });
-        fin.addText(m.name, {
+        fin.addText(m.label, {
           x: mx + 0.2,
           y: my + 0.15,
           w: mCardW - 0.4,

@@ -7,33 +7,107 @@ import type { FinancialData } from "@/lib/types";
 
 export const maxDuration = 120;
 
-const SYSTEM_PROMPT = `你是专业的财务分析师。请从以下商业计划书文本中提取所有财务相关数据，
-输出严格的JSON格式，不要输出任何其他内容。
+const SYSTEM_PROMPT = `你是专业的财务数据提取助手，专门从投资材料中识别和提取结构化财务数据。
 
-输出格式：
+提取规则：
+1. 优先识别文档中的表格结构，按行列提取数字
+2. 识别以下财务指标（中英文均可）：
+   - 收入/Revenue/营收/Revenues/Topline
+   - 净利润/Net Income/净收入
+   - EBITDA/息税折旧摊销前利润
+   - EBIT/息税前利润
+   - 毛利率/Gross Margin
+   - 净利率/Net Margin
+   - 员工数/FTE/Headcount
+   - 客户数/Customers
+   - ARR/MRR（SaaS指标）
+   - 估值/Valuation
+3. 对每个数据点，记录：数值、年份/期间、货币单位
+4. 区分历史数据（actual）和预测数据（forecast/projected）
+5. 如果数据来自表格，confidence 标为 "high"
+   如果数据来自文字描述推断，confidence 标为 "low"，
+   并在 note 字段注明"数据来自文字描述，建议核对"
+
+输出格式严格为 JSON，结构如下：
 {
-  "revenue": [{"year": "2022", "value": 1200, "unit": "万元"}],
-  "growth_rate": [{"year": "2023", "value": 80, "unit": "%"}],
-  "gross_margin": [{"year": "2022", "value": 45, "unit": "%"}],
-  "users": [{"year": "2022", "value": 50, "unit": "万"}],
-  "valuation": [{"round": "A轮", "value": 2, "unit": "亿元"}],
-  "funding_history": [{"round": "天使轮", "amount": 500, "unit": "万元", "year": "2021"}],
-  "key_metrics": [{"name": "月活用户", "value": "120万", "date": "2024Q1"}],
-  "summary": "一段100字以内的财务状况总结"
+  "currency": "USD/CNY/...",
+  "unit": "万/百万/...",
+  "extraction_quality": "high/medium/low",
+  "extraction_note": "说明提取质量，如有低置信度数据请注明",
+  "revenue": [{ "year": 2023, "value": 5.8, "type": "actual", "confidence": "high" }],
+  "ebitda": [{ "year": 2023, "value": 0.5, "type": "actual", "confidence": "high" }],
+  "ebit": [],
+  "net_income": [],
+  "gross_margin": [],
+  "net_margin": [],
+  "headcount": [{ "year": 2023, "value": 30, "type": "actual", "confidence": "high" }],
+  "customers": [],
+  "arr": [],
+  "mrr": [],
+  "valuation": [],
+  "key_metrics": [{ "label": "...", "value": "...", "year": 2023, "confidence": "high", "note": "" }]
 }
+不输出任何 JSON 以外的内容。`;
 
-如果某项数据不存在，返回空数组[]。数值统一转为数字类型，不要带单位在value里。`;
+const POINT_KEYS = [
+  "revenue",
+  "ebitda",
+  "ebit",
+  "net_income",
+  "gross_margin",
+  "net_margin",
+  "headcount",
+  "customers",
+  "arr",
+  "mrr",
+] as const;
 
 const EMPTY: FinancialData = {
+  currency: "",
+  unit: "",
+  extraction_quality: "low",
+  extraction_note: "",
   revenue: [],
-  growth_rate: [],
+  ebitda: [],
+  ebit: [],
+  net_income: [],
   gross_margin: [],
-  users: [],
+  net_margin: [],
+  headcount: [],
+  customers: [],
+  arr: [],
+  mrr: [],
   valuation: [],
-  funding_history: [],
   key_metrics: [],
-  summary: "",
 };
+
+function coercePoints(v: unknown): FinancialData["revenue"] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
+    .map((o) => ({
+      year: Number(o.year) || 0,
+      value: Number(o.value) || 0,
+      type: o.type === "forecast" ? ("forecast" as const) : ("actual" as const),
+      confidence:
+        o.confidence === "low" ? ("low" as const) : ("high" as const),
+    }))
+    .filter((p) => p.year > 0);
+}
+
+function coerceMetrics(v: unknown): FinancialData["key_metrics"] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((m): m is Record<string, unknown> => !!m && typeof m === "object")
+    .map((o) => ({
+      label: String(o.label ?? ""),
+      value: String(o.value ?? ""),
+      year: o.year == null ? null : Number(o.year) || null,
+      confidence:
+        o.confidence === "low" ? ("low" as const) : ("high" as const),
+      note: String(o.note ?? ""),
+    }));
+}
 
 // 从 AI 输出中提取 JSON（容忍 ```json 代码块包裹与前后噪声）。
 function extractJson(text: string): FinancialData {
@@ -44,22 +118,23 @@ function extractJson(text: string): FinancialData {
   const end = raw.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("AI 未返回有效 JSON");
   const parsed = JSON.parse(raw.slice(start, end + 1));
-  return {
+  const quality = ["high", "medium", "low"].includes(parsed.extraction_quality)
+    ? parsed.extraction_quality
+    : "medium";
+  const result: FinancialData = {
     ...EMPTY,
-    ...parsed,
-    revenue: Array.isArray(parsed.revenue) ? parsed.revenue : [],
-    growth_rate: Array.isArray(parsed.growth_rate) ? parsed.growth_rate : [],
-    gross_margin: Array.isArray(parsed.gross_margin)
-      ? parsed.gross_margin
-      : [],
-    users: Array.isArray(parsed.users) ? parsed.users : [],
+    currency: typeof parsed.currency === "string" ? parsed.currency : "",
+    unit: typeof parsed.unit === "string" ? parsed.unit : "",
+    extraction_quality: quality,
+    extraction_note:
+      typeof parsed.extraction_note === "string" ? parsed.extraction_note : "",
     valuation: Array.isArray(parsed.valuation) ? parsed.valuation : [],
-    funding_history: Array.isArray(parsed.funding_history)
-      ? parsed.funding_history
-      : [],
-    key_metrics: Array.isArray(parsed.key_metrics) ? parsed.key_metrics : [],
-    summary: typeof parsed.summary === "string" ? parsed.summary : "",
+    key_metrics: coerceMetrics(parsed.key_metrics),
   };
+  for (const key of POINT_KEYS) {
+    result[key] = coercePoints(parsed[key]);
+  }
+  return result;
 }
 
 // POST /api/projects/[id]/financials — 从 BP 提取结构化财务数据
