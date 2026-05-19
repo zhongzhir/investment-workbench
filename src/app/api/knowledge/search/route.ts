@@ -4,6 +4,7 @@ import { query } from "@/lib/db";
 import { generateEmbedding } from "@/lib/embedding";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 60;
 
@@ -210,22 +211,48 @@ export async function POST(req: NextRequest) {
   }
 
   const provider = user?.ai_provider ?? "deepseek";
-  const config = providerConfig[provider] ?? providerConfig.deepseek;
-  const client = new OpenAI({ apiKey, baseURL: config.baseURL });
-
-  const stream = await client.chat.completions.create({
-    model: config.model,
-    stream: true,
-    messages: [
-      {
-        role: "system",
-        content: `你是投资人的私人知识助手。根据以下知识库内容回答问题，保持专业、简洁。
+  const aiKey = apiKey; // 经上方校验，此处必为字符串
+  const userQuestion = question; // 经上方校验，此处必为字符串
+  const systemPrompt = `你是投资人的私人知识助手。根据以下知识库内容回答问题，保持专业、简洁。
 如果知识库内容不足以回答，请明确说明。不要编造信息。
-知识库内容：\n\n${contextText}`,
-      },
-      { role: "user", content: question },
-    ],
-  });
+知识库内容：\n\n${contextText}`;
+
+  // 按 provider 选择 SDK，统一产出文本增量流
+  async function* answerStream(): AsyncGenerator<string> {
+    if (provider === "claude" || provider === "anthropic") {
+      const client = new Anthropic({ apiKey: aiKey });
+      const stream = client.messages.stream({
+        model: providerConfig.claude.model,
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userQuestion }],
+      });
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          yield event.delta.text;
+        }
+      }
+      return;
+    }
+
+    const config = providerConfig[provider] ?? providerConfig.deepseek;
+    const client = new OpenAI({ apiKey: aiKey, baseURL: config.baseURL });
+    const stream = await client.chat.completions.create({
+      model: config.model,
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userQuestion },
+      ],
+    });
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content ?? "";
+      if (text) yield text;
+    }
+  }
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -236,15 +263,10 @@ export async function POST(req: NextRequest) {
           `data: ${JSON.stringify({ type: "sources", sources: context })}\n\n`
         )
       );
-      for await (const chunk of stream) {
-        const text = chunk.choices[0]?.delta?.content ?? "";
-        if (text) {
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ type: "text", text })}\n\n`
-            )
-          );
-        }
+      for await (const text of answerStream()) {
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
+        );
       }
       controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       controller.close();

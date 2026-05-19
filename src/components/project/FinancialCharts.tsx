@@ -204,7 +204,14 @@ export function FinancialCharts({ data }: { data: FinancialData }) {
   return (
     <div>
       {bannerOpen && (
-        <Banner info={banner} onClose={() => setBannerOpen(false)} />
+        <>
+          <Banner info={banner} onClose={() => setBannerOpen(false)} />
+          {banner.tone === "yellow" && (
+            <p className="-mt-2 mb-3 text-xs text-ink-faint">
+              💡 如有 Excel 财务模型，上传后可获得更精确的结构化数据
+            </p>
+          )}
+        </>
       )}
 
       {data.extraction_note && (
