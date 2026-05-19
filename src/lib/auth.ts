@@ -7,7 +7,11 @@ import GitHubProvider from "next-auth/providers/github";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { query } from "@/lib/db";
-import { verifyPhoneCode, isValidPhone } from "@/lib/authUtils";
+import {
+  verifyPhoneCode,
+  isValidPhone,
+  findOrCreatePhoneUser,
+} from "@/lib/authUtils";
 
 interface DbUser {
   id: string;
@@ -112,14 +116,8 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const rows = await query<DbUser>(
-          "SELECT id, email, name, image_url FROM users WHERE phone = $1",
-          [phone]
-        );
-        const user = rows[0];
-        if (!user) {
-          throw new Error("该手机号尚未注册，请先注册");
-        }
+        // 手机号未注册时静默创建账号，登录即注册一步完成
+        const user = await findOrCreatePhoneUser(phone);
 
         await query("DELETE FROM login_attempts WHERE identifier = $1", [
           phone,

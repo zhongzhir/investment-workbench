@@ -20,6 +20,41 @@ export function isValidPhone(phone: string): boolean {
   return /^1\d{10}$/.test(phone);
 }
 
+export interface PhoneUser {
+  id: string;
+  email: string | null;
+  name: string;
+  image_url: string | null;
+}
+
+// 按手机号查找用户，不存在则静默创建（手机号登录的自动注册）。
+// 默认 name 取手机号后四位，email 为 null，auth_provider 为 'phone'。
+export async function findOrCreatePhoneUser(phone: string): Promise<PhoneUser> {
+  const existing = await query<PhoneUser>(
+    "SELECT id, email, name, image_url FROM users WHERE phone = $1",
+    [phone]
+  );
+  if (existing[0]) return existing[0];
+
+  const name = `用户${phone.slice(-4)}`;
+  const created = await query<PhoneUser>(
+    `INSERT INTO users (name, phone, auth_provider)
+     VALUES ($1, $2, 'phone')
+     ON CONFLICT (phone) DO NOTHING
+     RETURNING id, email, name, image_url`,
+    [name, phone]
+  );
+  if (created[0]) return created[0];
+
+  // 并发创建：唯一约束兜底，重新查询
+  const again = await query<PhoneUser>(
+    "SELECT id, email, name, image_url FROM users WHERE phone = $1",
+    [phone]
+  );
+  if (again[0]) return again[0];
+  throw new Error("创建手机号用户失败");
+}
+
 // 校验手机验证码是否有效（存在、未使用、未过期、手机号与用途匹配）。
 // consume=true 时校验通过后将其标记为已使用。
 export async function verifyPhoneCode(

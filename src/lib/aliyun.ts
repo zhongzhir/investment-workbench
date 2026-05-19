@@ -80,7 +80,7 @@ export async function sendEmail(
   subject: string,
   html: string
 ): Promise<void> {
-  const from = process.env.ALIYUN_EMAIL_FROM;
+  const from = process.env.ALIYUN_EMAIL_FROM?.trim();
   if (!from) throw new Error("未配置 ALIYUN_EMAIL_FROM");
 
   await rpcRequest("https://dm.aliyuncs.com", "2015-11-23", "SingleSendMail", {

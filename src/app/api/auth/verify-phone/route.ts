@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { isValidPhone, verifyPhoneCode } from "@/lib/authUtils";
+import {
+  isValidPhone,
+  verifyPhoneCode,
+  findOrCreatePhoneUser,
+} from "@/lib/authUtils";
 
 // POST /api/auth/verify-phone — 校验手机验证码
 //   purpose=login：校验并消费验证码，返回该手机号对应用户
@@ -29,17 +33,12 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      const users = await query<{ id: string; name: string }>(
-        "SELECT id, name FROM users WHERE phone = $1",
-        [phone]
-      );
-      if (users.length === 0) {
-        return NextResponse.json(
-          { error: "该手机号尚未注册" },
-          { status: 404 }
-        );
-      }
-      return NextResponse.json({ ok: true, user: users[0] });
+      // 手机号未注册时静默创建账号，登录即注册一步完成
+      const user = await findOrCreatePhoneUser(phone);
+      return NextResponse.json({
+        ok: true,
+        user: { id: user.id, name: user.name },
+      });
     }
 
     // purpose === "register"：仅校验，不消费（注册路由会再次校验并消费）
