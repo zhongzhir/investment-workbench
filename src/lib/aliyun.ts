@@ -14,7 +14,8 @@ function percentEncode(s: string): string {
     .replace(/%7E/g, "~");
 }
 
-// 通用 RPC 调用：构造公共参数、计算签名并以 POST 方式请求。
+// 通用 RPC 调用：构造公共参数、计算签名并以 GET 方式请求。
+// 阿里云 RPC 风格 API 要求所有参数（含签名）放在 query string 中。
 async function rpcRequest(
   endpoint: string,
   version: string,
@@ -42,18 +43,15 @@ async function rpcRequest(
     .map((k) => `${percentEncode(k)}=${percentEncode(allParams[k])}`)
     .join("&");
 
-  const stringToSign = `POST&${percentEncode("/")}&${percentEncode(canonical)}`;
+  const stringToSign = `GET&${percentEncode("/")}&${percentEncode(canonical)}`;
   const signature = crypto
     .createHmac("sha1", `${ACCESS_KEY_SECRET}&`)
     .update(stringToSign)
     .digest("base64");
 
-  const body = `${canonical}&Signature=${percentEncode(signature)}`;
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  // 签名结果再做一次 percent encode，与其余参数一起拼入 query string
+  const url = `${endpoint}/?${canonical}&Signature=${percentEncode(signature)}`;
+  const res = await fetch(url, { method: "GET" });
 
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   const code = typeof data.Code === "string" ? data.Code : undefined;
@@ -73,7 +71,7 @@ export async function sendEmail(
   const from = process.env.ALIYUN_EMAIL_FROM;
   if (!from) throw new Error("未配置 ALIYUN_EMAIL_FROM");
 
-  await rpcRequest("https://dm.aliyuncs.com", "2015-11-23", "SingleSendMail", {
+  await rpcRequest("https://dm.aliyuncs.com", "2015-01-23", "SingleSendMail", {
     AccountName: from,
     AddressType: "1",
     ReplyToAddress: "false",
