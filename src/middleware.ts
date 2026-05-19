@@ -11,5 +11,7 @@ export const config = {
     "/knowledge/:path*",
     "/archive/:path*",
     "/settings/:path*",
+    "/cognition/:path*",
+    "/skills/:path*",
   ],
 };

@@ -7,14 +7,18 @@ import GitHubProvider from "next-auth/providers/github";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { query } from "@/lib/db";
+import { verifyPhoneCode, isValidPhone } from "@/lib/authUtils";
 
 interface DbUser {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   password_hash: string | null;
   image_url: string | null;
 }
+
+// 登录失败限流：同一标识 15 分钟内失败 5 次即锁定。
+const MAX_ATTEMPTS = 5;
 
 // GitHub OAuth 为可选项：仅当配置了 Client ID/Secret 时才启用。
 const githubEnabled =
@@ -34,20 +38,92 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
+        const email = credentials.email.toLowerCase().trim();
+
+        // 登录限流：统计过去 15 分钟内的失败次数
+        const recent = await query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM login_attempts
+            WHERE identifier = $1
+              AND attempted_at > NOW() - INTERVAL '15 minutes'`,
+          [email]
+        );
+        if (Number(recent[0]?.count ?? 0) >= MAX_ATTEMPTS) {
+          throw new Error("登录失败次数过多，请 15 分钟后重试");
+        }
 
         const rows = await query<DbUser>(
           "SELECT id, email, name, password_hash, image_url FROM users WHERE email = $1",
-          [credentials.email.toLowerCase().trim()]
+          [email]
         );
         const user = rows[0];
-        if (!user || !user.password_hash) return null;
+        const ok = user?.password_hash
+          ? await bcrypt.compare(credentials.password, user.password_hash)
+          : false;
 
-        const ok = await bcrypt.compare(
-          credentials.password,
-          user.password_hash
+        if (!ok) {
+          await query(
+            "INSERT INTO login_attempts (identifier) VALUES ($1)",
+            [email]
+          );
+          return null;
+        }
+
+        // 登录成功：清除该标识的失败记录
+        await query("DELETE FROM login_attempts WHERE identifier = $1", [
+          email,
+        ]);
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image_url,
+        };
+      },
+    }),
+    CredentialsProvider({
+      id: "phone",
+      name: "手机验证码",
+      credentials: {
+        phone: { label: "手机号", type: "text" },
+        code: { label: "验证码", type: "text" },
+      },
+      async authorize(credentials) {
+        const phone = credentials?.phone?.trim();
+        const code = credentials?.code?.trim();
+        if (!phone || !code || !isValidPhone(phone)) return null;
+
+        // 登录限流（手机号维度）
+        const recent = await query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM login_attempts
+            WHERE identifier = $1
+              AND attempted_at > NOW() - INTERVAL '15 minutes'`,
+          [phone]
         );
-        if (!ok) return null;
+        if (Number(recent[0]?.count ?? 0) >= MAX_ATTEMPTS) {
+          throw new Error("登录失败次数过多，请 15 分钟后重试");
+        }
 
+        const ok = await verifyPhoneCode(phone, code, "login", true);
+        if (!ok) {
+          await query(
+            "INSERT INTO login_attempts (identifier) VALUES ($1)",
+            [phone]
+          );
+          return null;
+        }
+
+        const rows = await query<DbUser>(
+          "SELECT id, email, name, image_url FROM users WHERE phone = $1",
+          [phone]
+        );
+        const user = rows[0];
+        if (!user) {
+          throw new Error("该手机号尚未注册，请先注册");
+        }
+
+        await query("DELETE FROM login_attempts WHERE identifier = $1", [
+          phone,
+        ]);
         return {
           id: user.id,
           email: user.email,
@@ -81,15 +157,21 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     // 首次登录时把数据库用户 id 写入 JWT。
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
-        const email = (user.email ?? token.email)?.toLowerCase().trim();
-        if (email) {
-          const rows = await query<{ id: string }>(
-            "SELECT id FROM users WHERE email = $1",
-            [email]
-          );
-          if (rows[0]) token.uid = rows[0].id;
+        if (account?.provider === "github") {
+          // GitHub OAuth：user.id 是 GitHub 的 id，需按邮箱回查数据库 id
+          const email = (user.email ?? token.email)?.toLowerCase().trim();
+          if (email) {
+            const rows = await query<{ id: string }>(
+              "SELECT id FROM users WHERE email = $1",
+              [email]
+            );
+            if (rows[0]) token.uid = rows[0].id;
+          }
+        } else {
+          // credentials / phone：authorize 返回的 user.id 即数据库 id
+          token.uid = user.id;
         }
       }
       return token;

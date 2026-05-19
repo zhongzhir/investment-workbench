@@ -1,0 +1,107 @@
+// 阿里云服务封装：邮件推送（DirectMail）与短信服务（SMS）。
+// 采用阿里云 RPC 风格 API 的 HMAC-SHA1 手动签名，无需额外 SDK 依赖。
+
+import crypto from "crypto";
+
+const ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID ?? "";
+const ACCESS_KEY_SECRET = process.env.ALIYUN_ACCESS_KEY_SECRET ?? "";
+
+// 阿里云 RPC 签名要求的百分号编码（区别于标准 encodeURIComponent）。
+function percentEncode(s: string): string {
+  return encodeURIComponent(s)
+    .replace(/\+/g, "%20")
+    .replace(/\*/g, "%2A")
+    .replace(/%7E/g, "~");
+}
+
+// 通用 RPC 调用：构造公共参数、计算签名并以 POST 方式请求。
+async function rpcRequest(
+  endpoint: string,
+  version: string,
+  action: string,
+  params: Record<string, string>
+): Promise<Record<string, unknown>> {
+  if (!ACCESS_KEY_ID || !ACCESS_KEY_SECRET) {
+    throw new Error("未配置阿里云 AccessKey");
+  }
+
+  const allParams: Record<string, string> = {
+    Format: "JSON",
+    Version: version,
+    AccessKeyId: ACCESS_KEY_ID,
+    SignatureMethod: "HMAC-SHA1",
+    SignatureVersion: "1.0",
+    SignatureNonce: crypto.randomUUID(),
+    Timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    Action: action,
+    ...params,
+  };
+
+  const canonical = Object.keys(allParams)
+    .sort()
+    .map((k) => `${percentEncode(k)}=${percentEncode(allParams[k])}`)
+    .join("&");
+
+  const stringToSign = `POST&${percentEncode("/")}&${percentEncode(canonical)}`;
+  const signature = crypto
+    .createHmac("sha1", `${ACCESS_KEY_SECRET}&`)
+    .update(stringToSign)
+    .digest("base64");
+
+  const body = `${canonical}&Signature=${percentEncode(signature)}`;
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const code = typeof data.Code === "string" ? data.Code : undefined;
+  if (!res.ok || (code && code !== "OK")) {
+    const msg = (data.Message as string) ?? code ?? `HTTP ${res.status}`;
+    throw new Error(`阿里云 ${action} 调用失败：${msg}`);
+  }
+  return data;
+}
+
+// 发送邮件（阿里云邮件推送 SingleSendMail）。
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string
+): Promise<void> {
+  const from = process.env.ALIYUN_EMAIL_FROM;
+  if (!from) throw new Error("未配置 ALIYUN_EMAIL_FROM");
+
+  await rpcRequest("https://dm.aliyuncs.com", "2015-11-23", "SingleSendMail", {
+    AccountName: from,
+    AddressType: "1",
+    ReplyToAddress: "false",
+    ToAddress: to,
+    Subject: subject,
+    HtmlBody: html,
+    FromAlias: "Vestia 投资工作台（由 muhub.cn 代发）",
+  });
+}
+
+// 发送短信验证码（阿里云短信服务 SendSms）。
+export async function sendSms(phone: string, code: string): Promise<void> {
+  const signName = process.env.ALIYUN_SMS_SIGN;
+  const templateCode = process.env.ALIYUN_SMS_TEMPLATE;
+  if (!signName || !templateCode) {
+    throw new Error("未配置阿里云短信参数");
+  }
+
+  await rpcRequest(
+    "https://dysmsapi.aliyuncs.com",
+    "2017-05-25",
+    "SendSms",
+    {
+      RegionId: "cn-hangzhou",
+      PhoneNumbers: phone,
+      SignName: signName,
+      TemplateCode: templateCode,
+      TemplateParam: JSON.stringify({ code }),
+    }
+  );
+}
