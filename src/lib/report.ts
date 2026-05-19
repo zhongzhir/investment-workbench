@@ -1,6 +1,7 @@
 import { type AIProvider, type ChatMessage, isValidProvider } from "@/lib/ai";
 import { decrypt } from "@/lib/crypto";
 import { query } from "@/lib/db";
+import type { FinancialData, FinPoint } from "@/lib/types";
 
 // 报告生成 / 修改的 prompt 构建与流式响应工具。
 
@@ -28,6 +29,80 @@ const REFINE_SYSTEM = `你是一位资深投资分析师，正在根据用户的
 - 返回【完整的】修改后报告（Markdown），不要只返回被修改的片段，不要附加说明文字。
 - 保持原有的七章节结构与 Markdown 格式。`;
 
+const FIN_SERIES: { key: keyof FinancialData; label: string }[] = [
+  { key: "revenue", label: "收入数据" },
+  { key: "ebitda", label: "EBITDA" },
+  { key: "ebit", label: "EBIT" },
+  { key: "net_income", label: "净利润" },
+  { key: "gross_margin", label: "毛利率" },
+  { key: "net_margin", label: "净利率" },
+  { key: "headcount", label: "员工数" },
+  { key: "customers", label: "客户数" },
+  { key: "arr", label: "ARR" },
+  { key: "mrr", label: "MRR" },
+];
+
+// 判断 financial_data 是否含有效数据点。
+function hasFinancialData(fd: FinancialData): boolean {
+  return (
+    FIN_SERIES.some((s) => ((fd[s.key] as FinPoint[]) ?? []).length > 0) ||
+    (fd.key_metrics ?? []).length > 0
+  );
+}
+
+// 把一组时间序列点格式化为 "2020年: 5.8, 2021年: 6.3（预测）"。
+function formatPoints(points: FinPoint[]): string {
+  return points
+    .slice()
+    .sort((a, b) => a.year - b.year)
+    .map((p) => {
+      const tags: string[] = [];
+      if (p.type === "forecast") tags.push("预测");
+      if (p.confidence === "low") tags.push("置信度低");
+      return `${p.year}年: ${p.value}${
+        tags.length ? `（${tags.join("、")}）` : ""
+      }`;
+    })
+    .join(", ");
+}
+
+// 将结构化财务数据格式化为注入 prompt 的上下文段落。
+function formatFinancialContext(fd: FinancialData): string {
+  const lines: string[] = ["【结构化财务数据】（已从文档自动提取，供参考）"];
+  lines.push(`货币单位：${fd.currency || "未注明"} ${fd.unit || ""}`.trim());
+
+  for (const s of FIN_SERIES) {
+    const points = (fd[s.key] as FinPoint[]) ?? [];
+    if (points.length > 0) lines.push(`${s.label}：${formatPoints(points)}`);
+  }
+
+  const km = fd.key_metrics ?? [];
+  if (km.length > 0) {
+    lines.push(
+      `关键指标：${km
+        .map(
+          (m) =>
+            `${m.label}: ${m.value}` +
+            (m.year != null ? `（${m.year}年）` : "") +
+            (m.confidence === "low" ? "（需核实）" : "")
+        )
+        .join("; ")}`
+    );
+  }
+
+  if (fd.extraction_note) {
+    lines.push(`数据置信度说明：${fd.extraction_note}`);
+  }
+
+  lines.push(
+    "",
+    "请在报告的财务分析章节优先使用以上结构化数据，",
+    "对于标注为 forecast 的数据请注明为预测值，",
+    "对于置信度 low 的数据请注明需核实。"
+  );
+  return lines.join("\n");
+}
+
 export function buildGenerationMessages(params: {
   projectName: string;
   companyName?: string | null;
@@ -35,10 +110,16 @@ export function buildGenerationMessages(params: {
   stage?: string | null;
   bpText: string;
   judgmentPoints: string[];
+  financialData?: FinancialData | null;
 }): { system: string; messages: ChatMessage[] } {
   const points = params.judgmentPoints
     .map((p, i) => `${i + 1}. ${p}`)
     .join("\n");
+
+  const finBlock =
+    params.financialData && hasFinancialData(params.financialData)
+      ? `\n\n${formatFinancialContext(params.financialData)}`
+      : "";
 
   const userContent = `## 项目基本信息
 - 项目名称：${params.projectName}
@@ -50,7 +131,7 @@ export function buildGenerationMessages(params: {
 ${points || "（用户未填写）"}
 
 ## 项目 BP 原文（解析自上传文档）
-${params.bpText || "（未提供 BP 文本）"}
+${params.bpText || "（未提供 BP 文本）"}${finBlock}
 
 请据此撰写完整的项目分析报告。`;
 

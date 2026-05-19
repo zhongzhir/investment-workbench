@@ -7,6 +7,7 @@ import {
   loadUserAICredentials,
   streamTextResponse,
 } from "@/lib/report";
+import type { FinancialData } from "@/lib/types";
 
 export const maxDuration = 120;
 
@@ -15,6 +16,7 @@ interface ProjectRow {
   company_name: string | null;
   industry: string | null;
   stage: string | null;
+  financial_data: FinancialData | null;
 }
 
 // POST /api/projects/[id]/reports — 生成项目分析报告（流式）
@@ -56,7 +58,7 @@ export async function POST(
 
   // 加载项目
   const projects = await query<ProjectRow>(
-    `SELECT name, company_name, industry, stage
+    `SELECT name, company_name, industry, stage, financial_data
        FROM projects WHERE id = $1 AND user_id = $2`,
     [params.id, session.user.id]
   );
@@ -105,6 +107,7 @@ export async function POST(
     stage: project.stage,
     bpText,
     judgmentPoints,
+    financialData: project.financial_data,
   });
 
   const generator = streamChat({
