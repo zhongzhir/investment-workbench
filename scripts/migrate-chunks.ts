@@ -5,23 +5,19 @@
 // （等价于 node --env-file=.env.local -r ts-node/register -r tsconfig-paths/register scripts/migrate-chunks.ts）
 
 import { pool, query } from "@/lib/db";
-import { decrypt } from "@/lib/crypto";
 import { processDocumentChunks } from "@/lib/documentChunks";
 
 interface DocRow {
   id: string;
   user_id: string;
   extracted_text: string | null;
-  ai_provider: string | null;
-  api_key_encrypted: string | null;
 }
 
 async function migrateChunks(): Promise<void> {
   // 已解析完成、且在 document_chunks 中尚无记录的文档
   const docs = await query<DocRow>(`
-    SELECT d.id, d.user_id, d.extracted_text, u.ai_provider, u.api_key_encrypted
+    SELECT d.id, d.user_id, d.extracted_text
       FROM documents d
-      JOIN users u ON d.user_id = u.id
      WHERE d.parse_status = 'done'
        AND d.extracted_text IS NOT NULL
        AND d.id NOT IN (SELECT DISTINCT document_id FROM document_chunks)
@@ -31,23 +27,8 @@ async function migrateChunks(): Promise<void> {
 
   let ok = 0;
   for (const doc of docs) {
-    let apiKey: string | null = null;
-    if (doc.api_key_encrypted) {
-      try {
-        apiKey = decrypt(doc.api_key_encrypted);
-      } catch {
-        apiKey = null;
-      }
-    }
-
     console.log(`迁移文档 ${doc.id} ...`);
-    await processDocumentChunks(
-      doc.id,
-      doc.user_id,
-      doc.extracted_text ?? "",
-      doc.ai_provider,
-      apiKey
-    );
+    await processDocumentChunks(doc.id, doc.user_id, doc.extracted_text ?? "");
     ok++;
   }
 

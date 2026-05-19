@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:schema": "node --env-file=.env.local scripts/apply-schema.mjs",
     "db:migrate": "node --env-file=.env.local scripts/apply-migration.mjs",
-    "db:migrate-chunks": "node --env-file=.env.local -r ts-node/register -r tsconfig-paths/register scripts/migrate-chunks.ts"
+    "db:migrate-chunks": "node --env-file=.env.local -r ts-node/register -r tsconfig-paths/register scripts/migrate-chunks.ts",
+    "db:backfill-embeddings": "node --env-file=.env.local -r ts-node/register -r tsconfig-paths/register scripts/backfill-embeddings.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

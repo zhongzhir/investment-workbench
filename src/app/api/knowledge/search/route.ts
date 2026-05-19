@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { getEmbedding } from "@/lib/embedding";
+import { generateEmbedding } from "@/lib/embedding";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
 
@@ -92,24 +92,21 @@ export async function POST(req: NextRequest) {
     }
   };
 
-  // 2. 向量检索（有 embedding 支持时补充）
-  let embResult: Awaited<ReturnType<typeof getEmbedding>> = null;
-  if (apiKey && user?.ai_provider) {
-    embResult = await getEmbedding(question, user.ai_provider, apiKey);
-    if (embResult) {
-      const vectorRows = await query<Chunk>(
-        `SELECT content, source_type,
-                1 - (embedding <=> $2::vector) AS score
-           FROM knowledge_base_entries
-          WHERE user_id = $1
-            AND embedding IS NOT NULL
-          ORDER BY embedding <=> $2::vector
-          LIMIT 8`,
-        [session.user.id, `[${embResult.vector.join(",")}]`]
-      );
-      // 合并去重，向量结果得分加权
-      addChunks(vectorRows, 1.2);
-    }
+  // 2. 向量检索（百炼可用时补充）
+  const embResult = await generateEmbedding(question);
+  if (embResult) {
+    const vectorRows = await query<Chunk>(
+      `SELECT content, source_type,
+              1 - (embedding <=> $2::vector) AS score
+         FROM knowledge_base_entries
+        WHERE user_id = $1
+          AND embedding IS NOT NULL
+        ORDER BY embedding <=> $2::vector
+        LIMIT 8`,
+      [session.user.id, `[${embResult.vector.join(",")}]`]
+    );
+    // 合并去重，向量结果得分加权
+    addChunks(vectorRows, 1.2);
   }
 
   // 3. 文档分块检索（document_chunks）：优先向量，否则回退全文 ILIKE

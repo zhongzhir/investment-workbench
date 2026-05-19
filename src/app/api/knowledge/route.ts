@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { getEmbedding } from "@/lib/embedding";
-import { decrypt } from "@/lib/crypto";
+import { generateEmbedding } from "@/lib/embedding";
 
 export const maxDuration = 30;
 
@@ -72,29 +71,13 @@ export async function POST(req: NextRequest) {
   }
   const tags = Array.isArray(body.tags) ? body.tags : [];
 
-  // 查用户的 provider + key，尝试生成 embedding
-  const userRows = await query<{
-    ai_provider: string | null;
-    api_key_encrypted: string | null;
-  }>("SELECT ai_provider, api_key_encrypted FROM users WHERE id = $1", [
-    session.user.id,
-  ]);
-  const user = userRows[0];
-
+  // 生成 embedding（百炼未配置或失败则仅保留全文检索）
   let embeddingVector: number[] | null = null;
   let embeddingModel: string | null = null;
-
-  if (user?.api_key_encrypted && user.ai_provider) {
-    try {
-      const apiKey = decrypt(user.api_key_encrypted);
-      const result = await getEmbedding(content, user.ai_provider, apiKey);
-      if (result) {
-        embeddingVector = result.vector;
-        embeddingModel = result.model;
-      }
-    } catch {
-      // 解密失败或 embedding 异常：跳过向量化，仅保留全文检索
-    }
+  const result = await generateEmbedding(content);
+  if (result) {
+    embeddingVector = result.vector;
+    embeddingModel = result.model;
   }
 
   const inserted = await query<KBRow>(
