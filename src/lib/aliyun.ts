@@ -53,9 +53,21 @@ async function rpcRequest(
   const url = `${endpoint}/?${canonical}&Signature=${percentEncode(signature)}`;
   const res = await fetch(url, { method: "GET" });
 
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  // 先按文本读取，确保非 JSON 响应也能落到日志里
+  const rawBody = await res.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = JSON.parse(rawBody) as Record<string, unknown>;
+  } catch {
+    // 响应非 JSON，data 保持空对象，rawBody 仍会被打印
+  }
+
   const code = typeof data.Code === "string" ? data.Code : undefined;
   if (!res.ok || (code && code !== "OK")) {
+    // 打印完整响应 body，便于在 Vercel 日志中定位阿里云返回的具体错误
+    console.error(
+      `[aliyun] ${action} 调用失败 HTTP ${res.status}，响应 body：${rawBody}`
+    );
     const msg = (data.Message as string) ?? code ?? `HTTP ${res.status}`;
     throw new Error(`阿里云 ${action} 调用失败：${msg}`);
   }
@@ -71,7 +83,7 @@ export async function sendEmail(
   const from = process.env.ALIYUN_EMAIL_FROM;
   if (!from) throw new Error("未配置 ALIYUN_EMAIL_FROM");
 
-  await rpcRequest("https://dm.aliyuncs.com", "2015-01-23", "SingleSendMail", {
+  await rpcRequest("https://dm.aliyuncs.com", "2015-11-23", "SingleSendMail", {
     AccountName: from,
     AddressType: "1",
     ReplyToAddress: "false",
