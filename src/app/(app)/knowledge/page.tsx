@@ -7,13 +7,28 @@ import {
   categoryLabel,
 } from "@/lib/knowledgeCategories";
 
+interface DigestStructured {
+  key_insights?: string[];
+  open_questions?: string[];
+  mindset_shift?: string | null;
+  watch_points?: string[];
+  summary?: string;
+}
+
 interface KBEntry {
   id: string;
   content: string;
   source_type: string;
+  entry_type?: string | null;
+  structured_data?: DigestStructured | null;
   tags: string[];
   embedding_model: string | null;
-  metadata?: { fileName?: string; fileType?: string } | null;
+  metadata?: {
+    fileName?: string;
+    fileType?: string;
+    project_name?: string;
+    digested_at?: string;
+  } | null;
   created_at: string;
 }
 
@@ -266,46 +281,109 @@ export default function KnowledgePage() {
         ) : (
           <div className="space-y-2">
             {entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="rounded-lg border border-line bg-white p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <p className="line-clamp-3 text-sm leading-relaxed text-ink">
-                    {entry.content}
-                  </p>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="rounded bg-[#E8ECF4] px-1.5 py-0.5 text-xs text-ink-faint">
-                      {entry.metadata?.fileType
-                        ? `文件上传 · ${
-                            FILE_TYPE_LABEL[entry.metadata.fileType] ??
-                            entry.metadata.fileType
-                          }`
-                        : entry.source_type === "manual"
-                          ? "手动录入"
-                          : SOURCE_LABEL[entry.source_type] ??
-                            entry.source_type}
-                    </span>
-                    {entry.tags?.length > 0 && (
-                      <span className="rounded bg-[#E8ECF4] px-1.5 py-0.5 text-xs text-ink-faint">
-                        {categoryLabel(entry.tags[0])}
-                      </span>
-                    )}
-                    {entry.embedding_model && (
-                      <span className="text-xs text-ink-faint" title="已向量化">
-                        ⚡
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <p className="mt-2 text-xs text-ink-faint">
-                  {new Date(entry.created_at).toLocaleDateString("zh-CN")}
-                </p>
-              </div>
+              <KBEntryItem key={entry.id} entry={entry} />
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function KBEntryItem({ entry }: { entry: KBEntry }) {
+  const [open, setOpen] = useState(false);
+  const isDigest = entry.entry_type === "conversation_digest";
+  const sd = entry.structured_data;
+  const icon = isDigest ? "💬" : "📄";
+
+  return (
+    <div className="rounded-lg border border-line bg-white p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-1 items-start gap-2">
+          <span className="text-base leading-5">{icon}</span>
+          <p className="line-clamp-3 flex-1 text-sm leading-relaxed text-ink">
+            {entry.content}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {isDigest ? (
+            <span className="rounded bg-[#0D1B3E] px-1.5 py-0.5 text-xs text-white">
+              对话提炼
+            </span>
+          ) : (
+            <span className="rounded bg-[#E8ECF4] px-1.5 py-0.5 text-xs text-ink-faint">
+              {entry.metadata?.fileType
+                ? `文件上传 · ${
+                    FILE_TYPE_LABEL[entry.metadata.fileType] ??
+                    entry.metadata.fileType
+                  }`
+                : entry.source_type === "manual"
+                  ? "手动录入"
+                  : SOURCE_LABEL[entry.source_type] ?? entry.source_type}
+            </span>
+          )}
+          {entry.tags?.length > 0 && (
+            <span className="rounded bg-[#E8ECF4] px-1.5 py-0.5 text-xs text-ink-faint">
+              {isDigest ? entry.tags[entry.tags.length - 1] : categoryLabel(entry.tags[0])}
+            </span>
+          )}
+          {entry.embedding_model && (
+            <span className="text-xs text-ink-faint" title="已向量化">
+              ⚡
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isDigest && sd && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="mt-2 text-xs text-[#0D1B3E] hover:underline"
+        >
+          {open ? "收起" : "展开详情"}
+        </button>
+      )}
+
+      {isDigest && sd && open && (
+        <div className="mt-3 space-y-3 border-t border-line pt-3 text-xs text-ink-soft">
+          {sd.key_insights && sd.key_insights.length > 0 && (
+            <DigestBlock title="核心判断" items={sd.key_insights} />
+          )}
+          {sd.open_questions && sd.open_questions.length > 0 && (
+            <DigestBlock title="遗留疑问" items={sd.open_questions} />
+          )}
+          {sd.mindset_shift && (
+            <div>
+              <p className="font-medium text-ink-faint">认知变化</p>
+              <p className="mt-1">{sd.mindset_shift}</p>
+            </div>
+          )}
+          {sd.watch_points && sd.watch_points.length > 0 && (
+            <DigestBlock title="待核实事项" items={sd.watch_points} />
+          )}
+        </div>
+      )}
+
+      <p className="mt-2 text-xs text-ink-faint">
+        {new Date(entry.created_at).toLocaleDateString("zh-CN")}
+        {isDigest && entry.metadata?.project_name && (
+          <span className="ml-2">· 来自项目「{entry.metadata.project_name}」</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function DigestBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <p className="font-medium text-ink-faint">{title}</p>
+      <ul className="mt-1 space-y-0.5">
+        {items.map((it, i) => (
+          <li key={i}>· {it}</li>
+        ))}
+      </ul>
     </div>
   );
 }

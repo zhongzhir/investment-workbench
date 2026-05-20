@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { popJudgmentPoints, readTextStream } from "@/lib/clientAI";
 import { FinancialCharts } from "./FinancialCharts";
+import { DigestCard } from "@/components/report/DigestCard";
 import type { FinancialData } from "@/lib/types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -249,6 +250,16 @@ export function ReportView({
             ))}
           </ol>
         </div>
+      )}
+
+      {/* 对话沉淀入口：对话轮次 ≥ 3 且有报告时显示 */}
+      {reportId && history.length >= 3 && !streaming && (
+        <DigestCard
+          reportId={reportId}
+          projectId={projectId}
+          projectName={projectName}
+          conversationLength={history.length}
+        />
       )}
 
       {/* 修改指令输入 */}

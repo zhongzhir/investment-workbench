@@ -9,6 +9,8 @@ interface KBRow {
   id: string;
   content: string;
   source_type: string | null;
+  entry_type: string | null;
+  structured_data: Record<string, unknown> | null;
   tags: string[];
   embedding_model: string | null;
   metadata?: Record<string, unknown>;
@@ -30,7 +32,8 @@ export async function GET(req: NextRequest) {
   const offset = (page - 1) * limit;
 
   const entries = await query<KBRow>(
-    `SELECT id, content, source_type, tags, embedding_model, metadata, created_at
+    `SELECT id, content, source_type, entry_type, structured_data,
+            tags, embedding_model, metadata, created_at
        FROM knowledge_base_entries
       WHERE user_id = $1
       ORDER BY created_at DESC
