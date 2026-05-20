@@ -20,6 +20,7 @@ export default function ChatPage() {
   const [active, setActive] = useState<ChatConversation | null>(null);
   const [creating, setCreating] = useState(false);
   const [showListOnMobile, setShowListOnMobile] = useState(true);
+  const [pageError, setPageError] = useState("");
 
   // 拉取对话列表
   const fetchList = useCallback(async () => {
@@ -46,17 +47,32 @@ export default function ChatPage() {
 
   async function createNew() {
     setCreating(true);
+    setPageError("");
     try {
       const res = await fetch("/api/conversations", {
         method: "POST",
         headers: JSON_HEADERS,
         body: JSON.stringify({}),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        const detail =
+          j?.error ||
+          `创建失败（HTTP ${res.status}）。若后端首次部署，请先在 Railway 执行 db/migrations/013_conversations.sql。`;
+        setPageError(detail);
+        console.error("[chat] POST /api/conversations failed", res.status, j);
+        return;
+      }
       const data = await res.json();
-      const id: string = data.conversation.id;
+      const id: string | undefined = data?.conversation?.id;
+      if (!id) {
+        setPageError("接口返回结构异常，缺少 conversation.id");
+        return;
+      }
       await fetchList();
       await loadConversation(id);
+    } catch (e) {
+      setPageError(e instanceof Error ? e.message : "网络异常");
     } finally {
       setCreating(false);
     }
@@ -127,13 +143,18 @@ export default function ChatPage() {
             onMessagesChange={handleMessagesChange}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-1 flex-col items-center justify-center">
             <EmptyState
               icon="💬"
               title="选择一段对话开始"
               description="或者新建一个对话，把你正在思考的问题抛给 AI"
               action={{ label: "+ 新对话", onClick: createNew }}
             />
+            {pageError && (
+              <p className="mx-6 mt-4 max-w-md rounded-lg bg-red-50 px-3 py-2 text-center text-sm text-red-600">
+                {pageError}
+              </p>
+            )}
           </div>
         )}
       </div>
