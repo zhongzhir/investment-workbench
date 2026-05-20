@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAuth } from "@/lib/auth";
 import { query } from "@/lib/db";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export const dynamic = "force-dynamic";
 
@@ -52,17 +53,13 @@ export default async function ProjectsPage() {
       </div>
 
       {projects.length === 0 ? (
-        <div className="mt-10 rounded-lg border border-dashed border-line py-16 text-center">
-          <p className="text-sm text-ink-soft">还没有项目</p>
-          <p className="mt-1 text-xs text-ink-faint">
-            上传一份 BP，开始你的第一个 AI 辅助分析。
-          </p>
-          <Link
-            href="/projects/new"
-            className="mt-4 inline-block text-sm font-medium text-accent hover:underline"
-          >
-            新建项目分析 →
-          </Link>
+        <div className="mt-6">
+          <EmptyState
+            icon="🗂️"
+            title="还没有项目"
+            description="创建第一个项目，上传 BP 开始分析"
+            action={{ label: "新建项目分析", href: "/projects/new" }}
+          />
         </div>
       ) : (
         <ul className="mt-8 space-y-2">

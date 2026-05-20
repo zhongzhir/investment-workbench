@@ -22,13 +22,18 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "-apple-system",
-          "BlinkMacSystemFont",
-          "Segoe UI",
+          "var(--font-inter)",
+          "var(--font-noto)",
           "PingFang SC",
           "Hiragino Sans GB",
-          "Microsoft YaHei",
+          "system-ui",
           "sans-serif",
+        ],
+        mono: [
+          "JetBrains Mono",
+          "Fira Code",
+          "Consolas",
+          "monospace",
         ],
       },
       maxWidth: {

@@ -13,6 +13,74 @@ body {
 
 body {
   @apply bg-canvas text-ink antialiased;
+  font-family: var(--font-inter), var(--font-noto),
+    "PingFang SC", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 中文正文行高适当放大 */
+p,
+li,
+td,
+textarea {
+  line-height: 1.75;
+}
+
+/* 标题字重层次（Tailwind 工具类具有更高优先级，可逐个覆盖） */
+h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+h4 {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/* 数字与金融数据用等宽字体 */
+.font-numeric {
+  font-family: var(--font-inter), "JetBrains Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 卡片基础样式 */
+.card-base {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid rgb(226 232 240);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.04),
+    0 1px 2px -1px rgb(0 0 0 / 0.04);
+}
+
+.card-base-dark {
+  background: rgb(15 23 42);
+  border-radius: 12px;
+  border: 1px solid rgb(30 41 59);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+}
+
+.card-hover {
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08);
+  transform: translateY(-1px);
 }
 
 /* 文档为中心的排版：正文行高宽松、字号舒适 */

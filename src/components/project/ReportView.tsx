@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { popJudgmentPoints, readTextStream } from "@/lib/clientAI";
 import { FinancialCharts } from "./FinancialCharts";
 import { DigestCard } from "@/components/report/DigestCard";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type { FinancialData } from "@/lib/types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -228,10 +229,14 @@ export function ReportView({
             <ReactMarkdown>{content}</ReactMarkdown>
             {streaming && <span className="type-cursor" />}
           </>
+        ) : streaming ? (
+          <p className="text-sm text-ink-faint">等待 AI 输出…</p>
         ) : (
-          <p className="text-sm text-ink-faint">
-            {streaming ? "等待 AI 输出…" : "暂无报告内容。"}
-          </p>
+          <EmptyState
+            icon="📄"
+            title="还没有报告"
+            description="上传文档后生成第一份分析报告"
+          />
         )}
       </article>
 

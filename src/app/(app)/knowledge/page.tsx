@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FileUploader } from "@/components/shared/FileUploader";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   KNOWLEDGE_CATEGORIES,
   categoryLabel,
@@ -272,12 +273,11 @@ export default function KnowledgePage() {
         {loading ? (
           <p className="text-sm text-ink-faint">加载中…</p>
         ) : entries.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-line py-12 text-center">
-            <p className="text-sm text-ink-soft">知识库为空</p>
-            <p className="mt-1 text-xs text-ink-faint">
-              上传项目文档或在上方录入笔记，内容将自动收录。
-            </p>
-          </div>
+          <EmptyState
+            icon="📚"
+            title="知识库还是空的"
+            description="上传文档或手动录入，AI 对话后也可一键沉淀认知"
+          />
         ) : (
           <div className="space-y-2">
             {entries.map((entry) => (

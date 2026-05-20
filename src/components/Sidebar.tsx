@@ -60,14 +60,24 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`mb-0.5 block rounded-md px-3 py-2 transition-colors ${
+              className={`mb-0.5 flex flex-col gap-0.5 rounded-lg px-3 py-2 transition-colors duration-150 ${
                 active
-                  ? "bg-accent-soft text-accent"
-                  : "text-ink-soft hover:bg-line/60 hover:text-ink"
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-ink-soft hover:bg-slate-100 hover:text-ink"
               }`}
             >
-              <div className="text-sm font-medium">{item.label}</div>
-              <div className="mt-0.5 text-xs text-ink-faint">{item.desc}</div>
+              <div
+                className={`text-sm ${active ? "font-medium" : "font-medium"}`}
+              >
+                {item.label}
+              </div>
+              <div
+                className={`text-xs ${
+                  active ? "text-blue-700/70" : "text-ink-faint"
+                }`}
+              >
+                {item.desc}
+              </div>
             </Link>
           );
         })}
