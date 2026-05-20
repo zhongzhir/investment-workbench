@@ -11,8 +11,12 @@ interface DigestStructured {
 }
 
 interface DigestCardProps {
-  reportId: string;
-  projectId: string;
+  // 两种数据源二选一：
+  // - report 模式：传 reportId
+  // - conversation 模式：传 conversationId
+  reportId?: string;
+  conversationId?: string;
+  projectId?: string | null;
   projectName: string;
   conversationLength: number;
   onDigested?: () => void;
@@ -32,6 +36,7 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export function DigestCard({
   reportId,
+  conversationId,
   projectId,
   projectName,
   conversationLength,
@@ -43,12 +48,17 @@ export function DigestCard({
   const [error, setError] = useState("");
   const [skipReason, setSkipReason] = useState("");
 
+  // 根据传入的 ID 决定 API 前缀
+  const apiBase = conversationId
+    ? `/api/conversations/${conversationId}/digest`
+    : `/api/reports/${reportId}/digest`;
+
   async function digest() {
     setError("");
     setSkipReason("");
     setPhase("loading");
     try {
-      const res = await fetch(`/api/reports/${reportId}/digest`, {
+      const res = await fetch(apiBase, {
         method: "POST",
         headers: JSON_HEADERS,
       });
@@ -74,12 +84,12 @@ export function DigestCard({
     setError("");
     setPhase("saving");
     try {
-      const res = await fetch(`/api/reports/${reportId}/digest`, {
+      const res = await fetch(apiBase, {
         method: "PUT",
         headers: JSON_HEADERS,
         body: JSON.stringify({
           structured_data: data,
-          project_id: projectId,
+          project_id: projectId ?? null,
           project_name: projectName,
         }),
       });

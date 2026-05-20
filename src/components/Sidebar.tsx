@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 // 主导航。对应 PRD 五大核心模块，MVP 阶段聚焦知识库 / 项目 / 归档。
 const NAV = [
   { href: "/", label: "首页", desc: "概览" },
+  { href: "/chat", label: "对话", desc: "与 AI 自由探讨" },
   { href: "/projects", label: "项目分析", desc: "上传 BP，生成分析报告" },
   { href: "/knowledge", label: "知识库", desc: "私有知识沉淀与检索" },
   { href: "/skills", label: "SKILL 市场", desc: "投资分析技能库" },
