@@ -9,6 +9,33 @@ const SUPPORTED_TYPES = ["pdf", "docx", "pptx", "xlsx", "xls"];
 
 export const maxDuration = 120;
 
+// GET /api/projects/[id]/documents — 项目下所有已上传文件
+export async function GET(
+  _req: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
+  }
+  // 同步校验项目归属
+  const owned = await query<{ id: string }>(
+    "SELECT id FROM projects WHERE id = $1 AND user_id = $2",
+    [params.id, session.user.id]
+  );
+  if (owned.length === 0) {
+    return NextResponse.json({ error: "项目不存在" }, { status: 404 });
+  }
+  const documents = await query(
+    `SELECT id, filename, file_type, doc_kind, parse_status, created_at
+       FROM documents
+      WHERE project_id = $1 AND user_id = $2
+      ORDER BY created_at DESC`,
+    [params.id, session.user.id]
+  );
+  return NextResponse.json({ documents });
+}
+
 // POST /api/projects/[id]/documents — 从 Blob URL 拉取 BP 文件并解析文本
 export async function POST(
   req: Request,

@@ -6,14 +6,13 @@ import { signOut, useSession } from "next-auth/react";
 
 // 主导航。对应 PRD 五大核心模块，MVP 阶段聚焦知识库 / 项目 / 归档。
 const NAV = [
-  { href: "/", label: "首页", desc: "概览" },
+  { href: "/dashboard", label: "首页", desc: "概览" },
   { href: "/chat", label: "对话", desc: "与 AI 自由探讨" },
   { href: "/projects", label: "项目分析", desc: "上传 BP，生成分析报告" },
+  { href: "/archive", label: "项目档案", desc: "项目全生命周期记录" },
   { href: "/knowledge", label: "知识库", desc: "私有知识沉淀与检索" },
   { href: "/skills", label: "SKILL 市场", desc: "投资分析技能库" },
-  { href: "/cognition", label: "认知进化", desc: "判断模式与认知洞察" },
-  { href: "/archive", label: "投后归档", desc: "报告归档与导出" },
-  { href: "/settings", label: "设置", desc: "AI 模型、API Key 与个人画像" },
+  { href: "/settings", label: "个人设置", desc: "个人画像与 AI 配置" },
 ];
 
 export function Sidebar() {
@@ -53,9 +52,10 @@ export function Sidebar() {
 
       <nav className="flex-1 px-2">
         {NAV.map((item) => {
+          // /dashboard 在根路径下也高亮（因为 / 会重定向到 /dashboard）
           const active =
-            item.href === "/"
-              ? pathname === "/"
+            item.href === "/dashboard"
+              ? pathname === "/" || pathname.startsWith("/dashboard")
               : pathname.startsWith(item.href);
           return (
             <Link

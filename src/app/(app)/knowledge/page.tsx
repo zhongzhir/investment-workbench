@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { FileUploader } from "@/components/shared/FileUploader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { CognitionAnalysis } from "@/components/cognition/CognitionAnalysis";
 import {
   KNOWLEDGE_CATEGORIES,
   categoryLabel,
@@ -286,6 +287,35 @@ export default function KnowledgePage() {
           </div>
         )}
       </div>
+
+      {/* 认知模式分析（折叠区块） */}
+      <CognitionPanel />
+    </div>
+  );
+}
+
+function CognitionPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-10 rounded-xl border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-5 py-4 text-left"
+      >
+        <div>
+          <p className="text-sm font-medium text-ink">认知模式分析</p>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            基于历史判断识别你的投资偏好与盲区
+          </p>
+        </div>
+        <span className="text-xs text-slate-400">{open ? "收起 ▴" : "展开 ▾"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-slate-200 px-5 py-4">
+          <CognitionAnalysis />
+        </div>
+      )}
     </div>
   );
 }
