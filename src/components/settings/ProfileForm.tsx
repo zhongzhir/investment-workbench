@@ -281,7 +281,7 @@ export function ProfileForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-xs text-ink-faint">典型票规模</label>
+            <label className="block text-xs text-ink-faint">典型投资规模</label>
             <input
               type="text"
               value={form.check_size ?? ""}

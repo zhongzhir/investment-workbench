@@ -25,9 +25,10 @@ export default function SettingsPage() {
 
       <section className="mt-12 border-t border-line pt-8">
         <h2 className="text-sm font-medium text-ink">投资人画像</h2>
-        <p className="mt-1 text-xs leading-5 text-ink-faint">
-          帮助 AI 更好地理解你的偏好，所有分析将更贴合你的判断风格。
-          所有字段均可留空，填写后会在调用大模型时前置注入到 system prompt。
+        <p className="mt-2 text-xs leading-6 text-ink-faint">
+          填写你的投资偏好与判断风格，Aivestor 在生成报告、提问追问、决策辅助时
+          会优先参考这份画像，让 AI 输出更贴合你的实际需要。
+          无需填满，填写越多，AI 越懂你。
         </p>
         <div className="mt-6">
           <ProfileForm />
