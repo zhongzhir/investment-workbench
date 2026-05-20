@@ -39,7 +39,9 @@ export function ChatArea({
   onTitleUpdate,
   onMessagesChange,
 }: Props) {
-  const [messages, setMessages] = useState<ChatMsg[]>(conversation.messages);
+  const [messages, setMessages] = useState<ChatMsg[]>(
+    conversation.messages ?? []
+  );
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -52,7 +54,7 @@ export function ChatArea({
 
   // 切换对话时同步外部 messages
   useEffect(() => {
-    setMessages(conversation.messages);
+    setMessages(conversation.messages ?? []);
     setStreamingText("");
     setStreamingSources([]);
     setError("");
