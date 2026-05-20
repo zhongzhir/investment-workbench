@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat } from "@/lib/ai";
 import { loadUserAICredentials } from "@/lib/report";
+import { injectProfile } from "@/lib/user-profile";
 import type { FinancialData } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -195,7 +196,7 @@ export async function POST(
     for await (const chunk of streamChat({
       provider: creds.provider,
       apiKey: creds.apiKey,
-      system: SYSTEM_PROMPT,
+      system: await injectProfile(session.user.id, SYSTEM_PROMPT),
       messages: [{ role: "user", content: bpText }],
     })) {
       raw += chunk;

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ApiKeyConfig } from "@/components/project/ApiKeyConfig";
 import { ApiKeyGuide } from "@/components/project/ApiKeyGuide";
+import { ProfileForm } from "@/components/settings/ProfileForm";
 
-// 设置页：AI 模型与 API Key 管理。
+// 设置页：AI 模型与 API Key 管理 + 投资人画像。
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-doc px-6 py-12">
@@ -20,6 +21,17 @@ export default function SettingsPage() {
         </div>
 
         <ApiKeyGuide />
+      </section>
+
+      <section className="mt-12 border-t border-line pt-8">
+        <h2 className="text-sm font-medium text-ink">投资人画像</h2>
+        <p className="mt-1 text-xs leading-5 text-ink-faint">
+          帮助 AI 更好地理解你的偏好，所有分析将更贴合你的判断风格。
+          所有字段均可留空，填写后会在调用大模型时前置注入到 system prompt。
+        </p>
+        <div className="mt-6">
+          <ProfileForm />
+        </div>
       </section>
 
       <footer className="mt-12 border-t border-line pt-6 text-xs text-ink-faint">

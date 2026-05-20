@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat } from "@/lib/ai";
 import { loadUserAICredentials, streamTextResponse } from "@/lib/report";
+import { injectProfile } from "@/lib/user-profile";
 import { STAGE_LABELS } from "@/lib/stages";
 
 export const maxDuration = 120;
@@ -174,8 +175,10 @@ export async function POST(req: Request) {
   const generator = streamChat({
     provider: creds.provider,
     apiKey: creds.apiKey,
-    system:
-      "你是一位资深的一级股权投资专家，输出使用简体中文与 Markdown 格式，专业、具体、有洞察力。",
+    system: await injectProfile(
+      session.user.id,
+      "你是一位资深的一级股权投资专家，输出使用简体中文与 Markdown 格式，专业、具体、有洞察力。"
+    ),
     messages: [{ role: "user", content: prompt }],
   });
 

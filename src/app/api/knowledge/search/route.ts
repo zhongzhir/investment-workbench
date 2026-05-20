@@ -5,6 +5,7 @@ import { generateEmbedding } from "@/lib/embedding";
 import { decrypt } from "@/lib/crypto";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { injectProfile } from "@/lib/user-profile";
 
 export const maxDuration = 60;
 
@@ -213,9 +214,10 @@ export async function POST(req: NextRequest) {
   const provider = user?.ai_provider ?? "deepseek";
   const aiKey = apiKey; // 经上方校验，此处必为字符串
   const userQuestion = question; // 经上方校验，此处必为字符串
-  const systemPrompt = `你是投资人的私人知识助手。根据以下知识库内容回答问题，保持专业、简洁。
+  const baseSystem = `你是投资人的私人知识助手。根据以下知识库内容回答问题，保持专业、简洁。
 如果知识库内容不足以回答，请明确说明。不要编造信息。
 知识库内容：\n\n${contextText}`;
+  const systemPrompt = await injectProfile(session.user.id, baseSystem);
 
   // 按 provider 选择 SDK，统一产出文本增量流
   async function* answerStream(): AsyncGenerator<string> {

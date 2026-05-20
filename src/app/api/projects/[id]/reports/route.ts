@@ -7,6 +7,7 @@ import {
   loadUserAICredentials,
   streamTextResponse,
 } from "@/lib/report";
+import { injectProfile } from "@/lib/user-profile";
 import type { FinancialData } from "@/lib/types";
 
 export const maxDuration = 120;
@@ -113,7 +114,7 @@ export async function POST(
   const generator = streamChat({
     provider: creds.provider,
     apiKey: creds.apiKey,
-    system,
+    system: await injectProfile(session.user.id, system),
     messages,
   });
 
