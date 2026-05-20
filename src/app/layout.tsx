@@ -3,12 +3,12 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 
 export const metadata: Metadata = {
-  title: "Vestia 投资工作台",
+  title: "Aivestor 投资工作台",
   description: "面向一级市场投资人的AI增强型工作平台",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Vestia",
+    title: "Aivestor",
     statusBarStyle: "default",
   },
 };

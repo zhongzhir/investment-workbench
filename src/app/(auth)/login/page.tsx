@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { LoginForm } from "@/components/auth/LoginForm";
 
-export const metadata: Metadata = { title: "登录 · Vestia" };
+export const metadata: Metadata = { title: "登录 · Aivestor" };
 
 export default function LoginPage() {
   // GitHub OAuth 为可选项：仅在已配置凭据时显示登录入口。

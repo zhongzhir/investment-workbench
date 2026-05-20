@@ -42,9 +42,10 @@ export function Sidebar() {
           </svg>
           <span
             className="text-base text-[#0D1B3E]"
-            style={{ fontWeight: 200, letterSpacing: "4px" }}
+            style={{ letterSpacing: "3px" }}
           >
-            VESTIA
+            <span style={{ fontWeight: 300 }}>Ai</span>
+            <span style={{ fontWeight: 700 }}>vestor</span>
           </span>
         </Link>
       </div>

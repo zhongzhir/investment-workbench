@@ -50,10 +50,10 @@ export async function POST(req: Request) {
         const link = `${APP_URL}/reset-password?token=${token}`;
         await sendEmail(
           email,
-          "重置你的 Vestia 账号密码",
+          "重置你的 Aivestor 账号密码",
           `<div style="font-family:-apple-system,sans-serif;line-height:1.7;color:#37352f">
              <p>你好，</p>
-             <p>我们收到了重置你 Vestia 投资工作台账号密码的请求。请点击下方链接设置新密码，链接 1 小时内有效：</p>
+             <p>我们收到了重置你 Aivestor 投资工作台账号密码的请求。请点击下方链接设置新密码，链接 1 小时内有效：</p>
              <p><a href="${link}" style="color:#1B6FE8">${link}</a></p>
              <p style="color:#787774;font-size:13px">如果你没有发起此请求，请忽略本邮件，你的密码不会被更改。</p>
            </div>`

@@ -90,7 +90,7 @@ export async function sendEmail(
     ToAddress: to,
     Subject: subject,
     HtmlBody: html,
-    FromAlias: "Vestia 投资工作台（由 muhub.cn 代发）",
+    FromAlias: "Aivestor 投资工作台（由 muhub.cn 代发）",
   });
 }
 
