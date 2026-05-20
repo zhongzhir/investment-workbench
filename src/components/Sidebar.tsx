@@ -13,7 +13,7 @@ const NAV = [
   { href: "/skills", label: "SKILL 市场", desc: "投资分析技能库" },
   { href: "/cognition", label: "认知进化", desc: "判断模式与认知洞察" },
   { href: "/archive", label: "投后归档", desc: "报告归档与导出" },
-  { href: "/settings", label: "设置", desc: "AI 模型与 API Key" },
+  { href: "/settings", label: "设置", desc: "AI 模型、API Key 与个人画像" },
 ];
 
 export function Sidebar() {
