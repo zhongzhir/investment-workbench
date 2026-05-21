@@ -75,6 +75,7 @@ ${meeting.content}
     for await (const chunk of streamChat({
       provider: creds.provider,
       apiKey: creds.apiKey,
+      baseURL: creds.baseURL,
       system: await injectProfile(
         session.user.id,
         "你是投后管理专家，只输出合法 JSON，不输出任何其他内容。"

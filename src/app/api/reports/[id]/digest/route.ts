@@ -136,6 +136,7 @@ export async function POST(
     for await (const chunk of streamChat({
       provider: creds.provider,
       apiKey: creds.apiKey,
+      baseURL: creds.baseURL,
       system: await injectProfile(session.user.id, DIGEST_SYSTEM),
       messages: [{ role: "user", content: userPrompt }],
     })) {

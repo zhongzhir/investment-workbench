@@ -173,17 +173,41 @@ ${params.instruction}
   };
 }
 
-// 从数据库读取并解密用户存储的 AI 凭据。
+// 从数据库读取并解密用户存储的 AI 凭据 + 可选的自定义 baseURL。
 export async function loadUserAICredentials(
   userId: string
-): Promise<{ provider: AIProvider; apiKey: string } | null> {
-  const rows = await query<{
+): Promise<{
+  provider: AIProvider;
+  apiKey: string;
+  baseURL?: string;
+} | null> {
+  // ai_base_url 由迁移 016 引入，旧库可能不存在 —— try/catch 兼容。
+  let row: {
     api_key_encrypted: string | null;
     ai_provider: string | null;
-  }>("SELECT api_key_encrypted, ai_provider FROM users WHERE id = $1", [
-    userId,
-  ]);
-  const row = rows[0];
+    ai_base_url: string | null;
+  } | undefined;
+  try {
+    const rows = await query<{
+      api_key_encrypted: string | null;
+      ai_provider: string | null;
+      ai_base_url: string | null;
+    }>(
+      "SELECT api_key_encrypted, ai_provider, ai_base_url FROM users WHERE id = $1",
+      [userId]
+    );
+    row = rows[0];
+  } catch {
+    const fallback = await query<{
+      api_key_encrypted: string | null;
+      ai_provider: string | null;
+    }>("SELECT api_key_encrypted, ai_provider FROM users WHERE id = $1", [
+      userId,
+    ]);
+    row = fallback[0]
+      ? { ...fallback[0], ai_base_url: null }
+      : undefined;
+  }
   if (!row?.api_key_encrypted) return null;
 
   const provider: AIProvider =
@@ -191,7 +215,11 @@ export async function loadUserAICredentials(
       ? row.ai_provider
       : "deepseek";
   try {
-    return { provider, apiKey: decrypt(row.api_key_encrypted) };
+    return {
+      provider,
+      apiKey: decrypt(row.api_key_encrypted),
+      baseURL: row.ai_base_url?.trim() || undefined,
+    };
   } catch {
     return null;
   }

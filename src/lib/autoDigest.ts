@@ -77,6 +77,7 @@ interface RunOpts {
   messages: Msg[];
   provider: AIProvider;
   apiKey: string;
+  baseURL?: string;
 }
 
 // 同步执行（serverless 下不要 fire-and-forget；调用方决定是否阻塞）
@@ -106,6 +107,7 @@ export async function runAutoDigest(opts: RunOpts): Promise<{
     for await (const chunk of streamChat({
       provider: opts.provider,
       apiKey: opts.apiKey,
+      baseURL: opts.baseURL,
       system: await injectProfile(opts.userId, DIGEST_SYSTEM),
       messages: [
         {

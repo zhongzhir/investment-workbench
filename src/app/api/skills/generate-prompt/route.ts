@@ -50,6 +50,7 @@ export async function POST(req: Request) {
     for await (const chunk of streamChat({
       provider: creds.provider,
       apiKey: creds.apiKey,
+      baseURL: creds.baseURL,
       system: await injectProfile(session.user.id, SKILL_GEN_SYSTEM),
       messages: [
         {

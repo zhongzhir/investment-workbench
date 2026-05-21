@@ -2,14 +2,57 @@
 
 import { useEffect, useState } from "react";
 
-const PROVIDERS = [
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "openai", label: "OpenAI" },
-  { value: "qwen", label: "通义千问" },
-  { value: "claude", label: "Claude" },
+interface ProviderDef {
+  value: string;
+  label: string;
+  defaultBaseUrl?: string;
+  pattern?: RegExp;
+  hint?: string;
+}
+
+const PROVIDERS: ProviderDef[] = [
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+    pattern: /^sk-[a-zA-Z0-9]{32,}$/,
+    hint: "DeepSeek API Key 应以 sk- 开头",
+  },
+  {
+    value: "openai",
+    label: "OpenAI",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    pattern: /^sk-[a-zA-Z0-9\-_]{20,}$/,
+    hint: "OpenAI API Key 应以 sk- 开头",
+  },
+  {
+    value: "qwen",
+    label: "通义千问",
+    defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    pattern: /^sk-[a-zA-Z0-9]{32,}$/,
+    hint: "通义千问 API Key 应以 sk- 开头",
+  },
+  {
+    value: "claude",
+    label: "Claude",
+    pattern: /^sk-ant-[a-zA-Z0-9\-_]{80,}$/,
+    hint: "Anthropic API Key 应以 sk-ant- 开头",
+  },
+  {
+    value: "ctyun",
+    label: "天翼 Token 套餐",
+    defaultBaseUrl: "https://api.ctyun.cn/v1",
+  },
 ];
 
-// API Key 配置区。Key 经 AES-256-GCM 加密后存储于数据库，前端仅见脱敏值。
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+type TestState =
+  | { phase: "idle" }
+  | { phase: "testing" }
+  | { phase: "ok"; sample?: string }
+  | { phase: "fail"; error: string };
+
 export function ApiKeyConfig({
   onChange,
 }: {
@@ -17,20 +60,26 @@ export function ApiKeyConfig({
 }) {
   const [provider, setProvider] = useState("deepseek");
   const [newKey, setNewKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
   const [configured, setConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [testState, setTestState] = useState<TestState>({ phase: "idle" });
 
   async function refresh() {
     const res = await fetch("/api/user/api-key");
     if (!res.ok) return;
     const data = await res.json();
-    setProvider(data.provider || "deepseek");
+    const p = data.provider || "deepseek";
+    setProvider(p);
     setMaskedKey(data.maskedKey);
     setConfigured(!!data.configured);
+    // 优先用户已保存的 baseUrl；否则用 provider 默认
+    const def = PROVIDERS.find((x) => x.value === p)?.defaultBaseUrl ?? "";
+    setBaseUrl(data.baseUrl ?? def);
     onChange?.(!!data.configured);
   }
 
@@ -38,6 +87,22 @@ export function ApiKeyConfig({
     refresh().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 切换 provider 时自动预填 Base URL（仅当当前 baseUrl 是某个已知默认值或为空）
+  function onProviderChange(next: string) {
+    const prevDefault = PROVIDERS.find((p) => p.value === provider)?.defaultBaseUrl ?? "";
+    const nextDefault = PROVIDERS.find((p) => p.value === next)?.defaultBaseUrl ?? "";
+    if (!baseUrl || baseUrl === prevDefault) {
+      setBaseUrl(nextDefault);
+    }
+    setProvider(next);
+    setTestState({ phase: "idle" });
+  }
+
+  const currentProvider = PROVIDERS.find((p) => p.value === provider);
+  const keyMatchesPattern = currentProvider?.pattern
+    ? currentProvider.pattern.test(newKey.trim())
+    : null;
 
   async function handleSave() {
     setError("");
@@ -50,10 +115,11 @@ export function ApiKeyConfig({
     try {
       const res = await fetch("/api/user/api-key", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: JSON_HEADERS,
         body: JSON.stringify({
           apiKey: newKey.trim() || undefined,
           provider,
+          baseUrl: baseUrl.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -69,8 +135,55 @@ export function ApiKeyConfig({
     }
   }
 
+  async function testConnection() {
+    const key = newKey.trim();
+    if (!key) {
+      setError("请先输入要测试的 API Key");
+      return;
+    }
+    setError("");
+    setTestState({ phase: "testing" });
+    try {
+      const res = await fetch("/api/settings/test-connection", {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({
+          provider,
+          apiKey: key,
+          baseUrl: baseUrl.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTestState({ phase: "ok", sample: data.sample });
+        window.setTimeout(() => setTestState({ phase: "idle" }), 4000);
+      } else {
+        setTestState({ phase: "fail", error: data.error || "连接失败" });
+      }
+    } catch (e) {
+      setTestState({
+        phase: "fail",
+        error: e instanceof Error ? e.message : "连接失败",
+      });
+    }
+  }
+
+  const showHighlight = !loading && !configured;
+
   return (
-    <div className="rounded-lg border border-line p-4">
+    <div
+      className={`rounded-xl border bg-white p-4 ${
+        showHighlight
+          ? "border-[#1B6FE8] ring-2 ring-[#1B6FE8]/20"
+          : "border-slate-200"
+      }`}
+    >
+      {showHighlight && (
+        <div className="mb-3 rounded-lg border-l-4 border-[#1B6FE8] bg-[#1B6FE808] px-3 py-2 text-xs text-blue-700">
+          ⚠️ 配置 API Key 后即可使用 AI 功能
+        </div>
+      )}
+
       <div className="text-sm font-medium text-ink">AI 模型与 API Key</div>
       <p className="mt-1 text-xs text-ink-faint">
         Key 经 AES-256-GCM 加密后存储，页面仅显示脱敏值。
@@ -81,9 +194,9 @@ export function ApiKeyConfig({
           <label className="mb-1 block text-xs text-ink-soft">服务商</label>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value)}
+            onChange={(e) => onProviderChange(e.target.value)}
             disabled={loading || saving}
-            className="w-full rounded-md border border-line bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             {PROVIDERS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -104,23 +217,81 @@ export function ApiKeyConfig({
           <input
             type="password"
             value={newKey}
-            onChange={(e) => setNewKey(e.target.value)}
+            onChange={(e) => {
+              setNewKey(e.target.value);
+              setTestState({ phase: "idle" });
+            }}
             disabled={loading || saving}
             placeholder={configured ? "输入新 Key 可替换" : "sk-..."}
-            className="w-full rounded-md border border-line px-2.5 py-1.5 text-sm outline-none placeholder:text-ink-faint focus:border-accent"
+            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
+          {newKey.trim() && keyMatchesPattern === true && (
+            <p className="mt-1 text-xs text-green-600">✓ 格式正确</p>
+          )}
+          {newKey.trim() && keyMatchesPattern === false && (
+            <p className="mt-1 text-xs text-orange-600">
+              ⚠ {currentProvider?.hint ?? "请检查 Key 格式"}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs text-ink-soft">
+            Base URL（可选）
+          </label>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            disabled={loading || saving}
+            placeholder={currentProvider?.defaultBaseUrl ?? "默认值（按服务商）"}
+            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-mono placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
+          {provider === "ctyun" && (
+            <p className="mt-1 text-xs text-slate-500">
+              天翼 Token 套餐请填写：{" "}
+              <code className="font-mono">https://api.ctyun.cn/v1</code>
+              （请以天翼云官方文档为准）
+            </p>
+          )}
         </div>
 
         {error && <p className="text-xs text-red-600">{error}</p>}
-        {message && <p className="text-xs text-accent">{message}</p>}
+        {message && <p className="text-xs text-green-600">{message}</p>}
+        {testState.phase === "fail" && (
+          <p className="text-xs text-red-600">连接失败：{testState.error}</p>
+        )}
 
-        <button
-          onClick={handleSave}
-          disabled={loading || saving}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "保存中…" : "保存"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleSave}
+            disabled={loading || saving}
+            className="rounded-lg bg-[#1B6FE8] px-4 py-1.5 text-sm font-medium tracking-[0.01em] text-white transition-colors duration-150 hover:bg-[#1762d0] disabled:opacity-50"
+          >
+            {saving ? "保存中…" : "保存"}
+          </button>
+          <button
+            onClick={testConnection}
+            disabled={
+              loading || saving || testState.phase === "testing" || !newKey.trim()
+            }
+            className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition-colors duration-150 disabled:opacity-50 ${
+              testState.phase === "ok"
+                ? "border-green-500 bg-green-50 text-green-700"
+                : testState.phase === "fail"
+                  ? "border-red-300 bg-red-50 text-red-700"
+                  : "border-slate-200 text-ink-soft hover:bg-slate-50"
+            }`}
+          >
+            {testState.phase === "testing"
+              ? "测试中…"
+              : testState.phase === "ok"
+                ? "✓ 连接成功"
+                : testState.phase === "fail"
+                  ? "✗ 连接失败"
+                  : "测试连接"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -253,6 +253,7 @@ export async function POST(
   const generator = streamChat({
     provider: creds.provider,
     apiKey: creds.apiKey,
+    baseURL: creds.baseURL,
     system: await injectProfile(
       session.user.id,
       "你是一位资深的一级股权投资专家，输出使用简体中文与 Markdown 格式。"

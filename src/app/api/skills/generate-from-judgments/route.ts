@@ -101,6 +101,7 @@ export async function POST() {
     for await (const chunk of streamChat({
       provider: creds.provider,
       apiKey: creds.apiKey,
+      baseURL: creds.baseURL,
       system: JUDGMENT_ANALYSIS_SYSTEM,
       messages: [
         {

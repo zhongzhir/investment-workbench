@@ -7,6 +7,7 @@ import { isValidProvider } from "@/lib/ai";
 interface UserKeyRow {
   api_key_encrypted: string | null;
   ai_provider: string | null;
+  ai_base_url: string | null;
 }
 
 // GET /api/user/api-key — 返回当前用户的 API Key（脱敏）与服务商
@@ -16,11 +17,25 @@ export async function GET() {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  const rows = await query<UserKeyRow>(
-    "SELECT api_key_encrypted, ai_provider FROM users WHERE id = $1",
-    [session.user.id]
-  );
-  const row = rows[0];
+  // ai_base_url 由迁移 016 引入；未应用时兼容回退
+  let row: UserKeyRow | undefined;
+  try {
+    const rows = await query<UserKeyRow>(
+      "SELECT api_key_encrypted, ai_provider, ai_base_url FROM users WHERE id = $1",
+      [session.user.id]
+    );
+    row = rows[0];
+  } catch {
+    const fallback = await query<{
+      api_key_encrypted: string | null;
+      ai_provider: string | null;
+    }>("SELECT api_key_encrypted, ai_provider FROM users WHERE id = $1", [
+      session.user.id,
+    ]);
+    row = fallback[0]
+      ? { ...fallback[0], ai_base_url: null }
+      : undefined;
+  }
   const provider = row?.ai_provider || "deepseek";
 
   let maskedKey: string | null = null;
@@ -28,7 +43,6 @@ export async function GET() {
     try {
       maskedKey = maskKey(decrypt(row.api_key_encrypted));
     } catch {
-      // 解密失败（如更换过 ENCRYPTION_KEY）：视作未配置
       maskedKey = null;
     }
   }
@@ -37,6 +51,7 @@ export async function GET() {
     configured: maskedKey !== null,
     maskedKey,
     provider,
+    baseUrl: row?.ai_base_url ?? null,
   });
 }
 
@@ -47,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  let body: { apiKey?: string; provider?: string };
+  let body: { apiKey?: string; provider?: string; baseUrl?: string | null };
   try {
     body = await req.json();
   } catch {
@@ -59,20 +74,44 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "不支持的服务商" }, { status: 400 });
   }
 
+  // baseUrl：空字符串或缺失视为 null（清空，回到默认 endpoint）
+  const baseUrl =
+    typeof body.baseUrl === "string" && body.baseUrl.trim()
+      ? body.baseUrl.trim()
+      : null;
+
   const apiKey = body.apiKey?.trim();
-  if (apiKey) {
-    // 同时更新 Key 与服务商
-    await query(
-      "UPDATE users SET api_key_encrypted = $1, ai_provider = $2 WHERE id = $3",
-      [encrypt(apiKey), provider, session.user.id]
-    );
-  } else {
-    // 仅更新服务商，保留原有 Key
-    await query("UPDATE users SET ai_provider = $1 WHERE id = $2", [
-      provider,
-      session.user.id,
-    ]);
+  try {
+    if (apiKey) {
+      // 同时更新 Key / 服务商 / baseUrl
+      await query(
+        `UPDATE users
+            SET api_key_encrypted = $1, ai_provider = $2, ai_base_url = $3
+          WHERE id = $4`,
+        [encrypt(apiKey), provider, baseUrl, session.user.id]
+      );
+    } else {
+      // 仅更新服务商 / baseUrl，保留原有 Key
+      await query(
+        "UPDATE users SET ai_provider = $1, ai_base_url = $2 WHERE id = $3",
+        [provider, baseUrl, session.user.id]
+      );
+    }
+  } catch (e) {
+    // ai_base_url 列不存在时（迁移未跑）回退到旧字段集
+    console.warn("[api-key] 写入失败，回退到旧字段集:", e);
+    if (apiKey) {
+      await query(
+        "UPDATE users SET api_key_encrypted = $1, ai_provider = $2 WHERE id = $3",
+        [encrypt(apiKey), provider, session.user.id]
+      );
+    } else {
+      await query("UPDATE users SET ai_provider = $1 WHERE id = $2", [
+        provider,
+        session.user.id,
+      ]);
+    }
   }
 
-  return NextResponse.json({ ok: true, provider });
+  return NextResponse.json({ ok: true, provider, baseUrl });
 }

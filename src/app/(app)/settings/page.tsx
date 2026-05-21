@@ -1,10 +1,28 @@
 import Link from "next/link";
+import { requireAuth } from "@/lib/auth";
+import { query } from "@/lib/db";
 import { ApiKeyConfig } from "@/components/project/ApiKeyConfig";
 import { ApiKeyGuide } from "@/components/project/ApiKeyGuide";
 import { ProfileForm } from "@/components/settings/ProfileForm";
+import { RecommendedPlans } from "@/components/settings/RecommendedPlans";
+
+export const dynamic = "force-dynamic";
 
 // 个人设置：投资人画像置顶 + AI 模型配置。
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  // 是否已有 API Key：决定推荐方案区块默认展开/折叠
+  const session = await requireAuth();
+  let hasApiKey = false;
+  try {
+    const rows = await query<{ api_key_encrypted: string | null }>(
+      "SELECT api_key_encrypted FROM users WHERE id = $1",
+      [session.user.id]
+    );
+    hasApiKey = !!rows[0]?.api_key_encrypted;
+  } catch {
+    hasApiKey = false;
+  }
+
   return (
     <div className="mx-auto max-w-doc px-6 py-12">
       <h1 className="text-xl font-semibold text-ink">个人设置</h1>
@@ -30,6 +48,7 @@ export default function SettingsPage() {
           调用大模型时由服务端解密使用。
         </p>
         <div className="mt-4">
+          <RecommendedPlans defaultExpanded={!hasApiKey} />
           <ApiKeyConfig />
         </div>
 

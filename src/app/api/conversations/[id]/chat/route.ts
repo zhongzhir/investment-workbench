@@ -100,6 +100,7 @@ async function buildProjectContext(
 async function generateTitle(
   provider: ReturnType<typeof Object>,
   apiKey: string,
+  baseURL: string | undefined,
   firstMessage: string,
   reply: string
 ): Promise<string | null> {
@@ -108,6 +109,7 @@ async function generateTitle(
     for await (const chunk of streamChat({
       provider: provider as never,
       apiKey,
+      baseURL,
       system:
         "你为一段对话生成一个 10 字以内的简洁标题，只输出标题文字本身，不要引号、不要标点、不要解释。",
       messages: [
@@ -193,6 +195,7 @@ export async function POST(
   const generator = streamChat({
     provider: creds.provider,
     apiKey: creds.apiKey,
+    baseURL: creds.baseURL,
     system: systemPrompt,
     messages,
   });
@@ -269,6 +272,7 @@ export async function POST(
         const title = await generateTitle(
           creds.provider,
           creds.apiKey,
+          creds.baseURL,
           userMessage,
           full
         );
@@ -305,6 +309,7 @@ export async function POST(
             })),
             provider: creds.provider,
             apiKey: creds.apiKey,
+            baseURL: creds.baseURL,
           });
           if (result.saved) {
             controller.enqueue(
