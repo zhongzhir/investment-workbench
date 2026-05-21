@@ -1,11 +1,17 @@
 import { query } from "@/lib/db";
+import { formatTokens } from "@/lib/tokensFormat";
 
-// 系统免费额度（平台代付 DeepSeek）
+// 系统免费额度（平台代付 DeepSeek）—— 服务端专用
+// 引用 pg（Node.js 专用），不要在 'use client' 组件中 import 本文件。
+// 客户端需要 formatTokens 时请直接从 "@/lib/tokensFormat" 取。
 //
 // 设计原则：
 // - 手机号粒度限额（防止单用户开多账号）
 // - SYSTEM_DEEPSEEK_API_KEY 未配置时整套机制静默禁用，不影响现有用户
 // - 用户已配置自己的 Key 时完全不走免费额度路径
+
+// 为兼容旧 import 路径，从 freeQuota 中重导出 formatTokens（仅服务端用）
+export { formatTokens };
 
 const QUOTA_LIMIT_DEFAULT = 10_000_000; // 1000 万 tokens
 
@@ -116,16 +122,3 @@ export async function consumeQuota(
   }
 }
 
-// 数字格式化：100万tokens / 23.5万tokens / 1234tokens
-export function formatTokens(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return "0 tokens";
-  if (n >= 1_000_000) {
-    const v = n / 10_000;
-    const fixed = v >= 100 ? Math.round(v) : v.toFixed(1);
-    return `${fixed} 万 tokens`;
-  }
-  if (n >= 10_000) {
-    return `${(n / 10_000).toFixed(1)} 万 tokens`;
-  }
-  return `${n} tokens`;
-}

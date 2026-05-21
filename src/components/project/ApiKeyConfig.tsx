@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatTokens } from "@/lib/freeQuota";
+import { formatTokens } from "@/lib/tokensFormat";
 
 interface QuotaStatus {
   enabled: boolean;
