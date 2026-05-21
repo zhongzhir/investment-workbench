@@ -39,6 +39,20 @@ const PROVIDERS: ProviderDef[] = [
     hint: "Anthropic API Key 应以 sk-ant- 开头",
   },
   {
+    value: "zhipu",
+    label: "智谱 AI（GLM）",
+    defaultBaseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    pattern: /^[a-zA-Z0-9]{20,}\.[a-zA-Z0-9]{16,}$|^sk-[a-zA-Z0-9]{20,}$/,
+    hint: "智谱 AI Key 形如 xxx.yyy 或 sk- 开头",
+  },
+  {
+    value: "moonshot",
+    label: "Moonshot（Kimi）",
+    defaultBaseUrl: "https://api.moonshot.cn/v1",
+    pattern: /^sk-[a-zA-Z0-9]{32,}$/,
+    hint: "Moonshot API Key 应以 sk- 开头",
+  },
+  {
     value: "ctyun",
     label: "天翼 Token 套餐",
     defaultBaseUrl: "https://api.ctyun.cn/v1",

@@ -124,12 +124,8 @@ export default async function ProjectsPage() {
         </ul>
       )}
 
-      {/* 示例项目入口（任何状态下都展示，便于已有项目的用户也能去看） */}
-      {projects.length > 0 && (
-        <div className="mt-12 border-t border-slate-200 pt-6">
-          <DemoCards />
-        </div>
-      )}
+      {/* 示例项目入口：仅在用户还没有真实项目时展示，
+          一旦创建第一个项目就隐藏，避免持续打扰 */}
     </div>
   );
 }

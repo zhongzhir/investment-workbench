@@ -10,7 +10,9 @@ export type AIProvider =
   | "openai"
   | "qwen"
   | "claude"
-  | "ctyun";
+  | "ctyun"
+  | "zhipu"
+  | "moonshot";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -45,12 +47,28 @@ const OPENAI_COMPATIBLE: Record<
     baseURL: "https://api.ctyun.cn/v1",
     defaultModel: "deepseek-chat",
   },
+  zhipu: {
+    baseURL: "https://open.bigmodel.cn/api/paas/v4",
+    defaultModel: "glm-4-flash",
+  },
+  moonshot: {
+    baseURL: "https://api.moonshot.cn/v1",
+    defaultModel: "moonshot-v1-8k",
+  },
 };
 
 const DEFAULT_CLAUDE_MODEL = "claude-3-5-sonnet-latest";
 
 export function isValidProvider(v: string): v is AIProvider {
-  return ["deepseek", "openai", "qwen", "claude", "ctyun"].includes(v);
+  return [
+    "deepseek",
+    "openai",
+    "qwen",
+    "claude",
+    "ctyun",
+    "zhipu",
+    "moonshot",
+  ].includes(v);
 }
 
 // 给前端 / 测试连接路由共用：取默认 baseURL（仅 OpenAI 兼容）

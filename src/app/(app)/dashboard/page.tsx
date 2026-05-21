@@ -78,17 +78,32 @@ export default async function DashboardPage() {
       (p): p is SleepRow & { days: number } => p.days !== null
     );
 
-  // 引导弹窗：用户首次登录后弹一次；字段不存在（迁移未跑）则视作 false 弹一次
+  // 引导弹窗：三个条件同时满足才弹（未完成引导 + 没有项目 + 没有 API Key）
+  // 任意一个不满足都说明用户已经"上手"，不再打扰
   let showOnboarding = false;
   if (user) {
     try {
-      const rows = await query<{ onboarding_completed: boolean | null }>(
-        "SELECT onboarding_completed FROM users WHERE id = $1",
+      const rows = await query<{
+        onboarding_completed: boolean | null;
+        api_key_encrypted: string | null;
+      }>(
+        "SELECT onboarding_completed, api_key_encrypted FROM users WHERE id = $1",
         [user.id]
       );
-      showOnboarding = !rows[0]?.onboarding_completed;
+      const row = rows[0];
+      const completed = !!row?.onboarding_completed;
+      const hasApiKey = !!row?.api_key_encrypted;
+
+      const countRows = await query<{ count: string }>(
+        "SELECT COUNT(*)::text AS count FROM projects WHERE user_id = $1",
+        [user.id]
+      );
+      const hasProjects = Number(countRows[0]?.count ?? 0) > 0;
+
+      showOnboarding = !completed && !hasProjects && !hasApiKey;
     } catch {
-      showOnboarding = true;
+      // 查询失败时不弹（容错优先：避免老用户重复看到弹窗）
+      showOnboarding = false;
     }
   }
 
