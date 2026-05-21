@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { sleepDays } from "@/lib/projectSleep";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,11 @@ interface ProjectRow {
   industry: string | null;
   status: string;
   created_at: string;
+  updated_at: string;
   latest_report_id: string | null;
   latest_report_status: string | null;
 }
+
 
 const STATUS_LABEL: Record<string, string> = {
   evaluating: "评估中",
@@ -27,7 +30,8 @@ export default async function ProjectsPage() {
   const session = await requireAuth();
 
   const projects = await query<ProjectRow>(
-    `SELECT p.id, p.name, p.company_name, p.industry, p.status, p.created_at,
+    `SELECT p.id, p.name, p.company_name, p.industry, p.status,
+            p.created_at, p.updated_at,
             r.id AS latest_report_id, r.status AS latest_report_status
        FROM projects p
        LEFT JOIN LATERAL (
@@ -81,13 +85,29 @@ export default async function ProjectsPage() {
                         .join(" · ") || "未填写公司 / 行业"}
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-xs text-ink-soft">
-                    {STATUS_LABEL[p.status] ?? p.status}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {(() => {
+                      const d = sleepDays(p.status, p.updated_at);
+                      if (d == null) return null;
+                      return (
+                        <span className="rounded-full border border-[#FF6B35] bg-[#FF6B3510] px-2 py-0.5 text-xs text-[#FF6B35]">
+                          ⏰ 已沉睡 {d} 天
+                        </span>
+                      );
+                    })()}
+                    <span className="rounded-full bg-surface px-2 py-0.5 text-xs text-ink-soft">
+                      {STATUS_LABEL[p.status] ?? p.status}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-3 flex items-center gap-3 text-xs text-ink-faint">
                   <span>
                     {new Date(p.created_at).toLocaleDateString("zh-CN")}
+                  </span>
+                  <span>·</span>
+                  <span>
+                    上次更新：
+                    {new Date(p.updated_at).toLocaleDateString("zh-CN")}
                   </span>
                   <span>·</span>
                   <span>

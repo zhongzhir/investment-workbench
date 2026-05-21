@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
+import { sleepDays } from "@/lib/projectSleep";
 
 // 首页（/dashboard）：以文档为中心的概览，大量留白，引导进入核心动线。
 const QUICK_ACTIONS = [
@@ -54,6 +55,29 @@ export default async function DashboardPage() {
       )
     : [];
 
+  // 计算沉睡项目（active 状态 + 超过 14 天未更新）
+  // 用更宽的查询拿所有 active 项目，对比阈值。
+  type SleepRow = { id: string; name: string; updated_at: string; status: string };
+  let sleepingRaw: SleepRow[] = [];
+  if (user) {
+    try {
+      sleepingRaw = await query<SleepRow>(
+        `SELECT id, name, status, updated_at
+           FROM projects
+          WHERE user_id = $1 AND status IN ('evaluating', 'invested')
+          ORDER BY updated_at ASC`,
+        [user.id]
+      );
+    } catch {
+      sleepingRaw = [];
+    }
+  }
+  const sleeping = sleepingRaw
+    .map((p) => ({ ...p, days: sleepDays(p.status, p.updated_at) }))
+    .filter(
+      (p): p is SleepRow & { days: number } => p.days !== null
+    );
+
   // 引导弹窗：用户首次登录后弹一次；字段不存在（迁移未跑）则视作 false 弹一次
   let showOnboarding = false;
   if (user) {
@@ -81,6 +105,41 @@ export default async function DashboardPage() {
         Aivestor 帮助你把分散的投资判断沉淀为可调用的知识资产，
         并借助 AI 加速分析报告的生成与打磨。
       </p>
+
+      {/* 沉睡项目提醒：仅在有沉睡项目时渲染 */}
+      {sleeping.length > 0 && (
+        <div className="mt-6 rounded-xl border-l-4 border-[#FF6B35] bg-[#FF6B3508] px-4 py-3">
+          <p className="text-sm font-medium text-[#FF6B35]">
+            ⏰ 有 {sleeping.length} 个项目超过 14 天未更新
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {sleeping.slice(0, 5).map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-3 text-xs"
+              >
+                <span className="truncate text-ink-soft">
+                  · {p.name} · 已沉睡 {p.days} 天
+                </span>
+                <Link
+                  href={`/projects/${p.id}`}
+                  className="shrink-0 text-xs font-medium text-[#FF6B35] hover:underline"
+                >
+                  去查看 →
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {sleeping.length > 5 && (
+            <p className="mt-1.5 text-xs text-slate-400">
+              共 {sleeping.length} 个，查看
+              <Link href="/projects" className="ml-1 text-[#FF6B35] hover:underline">
+                完整项目列表
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
 
       {!user && (
         <Link

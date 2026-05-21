@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FileUploader } from "@/components/shared/FileUploader";
 import { PostInvestment } from "@/components/project/PostInvestment";
@@ -293,6 +293,7 @@ function JudgmentsTab({
 }) {
   return (
     <div>
+      <PendingQuestions projectId={projectId} />
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">
           判断时间线
@@ -383,6 +384,60 @@ function JudgmentsTab({
           {outcome.outcome_note && (
             <p className="mt-2 text-xs text-ink-soft">{outcome.outcome_note}</p>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 项目页「遗留疑问」折叠区块：聚合本项目所有对话沉淀的 open_questions
+function PendingQuestions({ projectId }: { projectId: string }) {
+  const [questions, setQuestions] = useState<string[] | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/pending-questions`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setQuestions(data.questions ?? []);
+      } catch {
+        if (!cancelled) setQuestions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
+
+  if (!questions || questions.length === 0) return null;
+
+  return (
+    <div className="mb-5 rounded-xl border-l-4 border-blue-500 bg-[#1B6FE808]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+      >
+        <span className="text-xs font-medium text-blue-700">
+          💬 遗留疑问（{questions.length} 条）
+        </span>
+        <span className="text-xs text-blue-700/70">
+          {open ? "收起 ∧" : "展开 ∨"}
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-blue-100 px-3 py-2.5">
+          <ul className="space-y-1 text-xs text-ink-soft">
+            {questions.map((q, i) => (
+              <li key={i}>· {q}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-right text-xs text-blue-700/70">
+            来自对话沉淀
+          </p>
         </div>
       )}
     </div>
