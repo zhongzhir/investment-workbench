@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import { popJudgmentPoints, readTextStream } from "@/lib/clientAI";
 import { FinancialCharts } from "./FinancialCharts";
 import { DigestCard } from "@/components/report/DigestCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { renderSourceBadges } from "@/lib/reportBadges";
 import type { FinancialData } from "@/lib/types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -226,7 +228,9 @@ export function ReportView({
       <article className="report-body mt-6 min-h-[200px]">
         {content ? (
           <>
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <ReactMarkdown rehypePlugins={[rehypeRaw]}>
+              {renderSourceBadges(content)}
+            </ReactMarkdown>
             {streaming && <span className="type-cursor" />}
           </>
         ) : streaming ? (
@@ -239,6 +243,9 @@ export function ReportView({
           />
         )}
       </article>
+
+      {/* 溯源图例：仅在有报告内容时显示 */}
+      {content && !streaming && <SourceLegend />}
 
       {/* 修改历史 */}
       {history.length > 0 && (
@@ -286,6 +293,29 @@ export function ReportView({
             提交修改
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 报告溯源图例：解释正文中三种徽章的含义
+function SourceLegend() {
+  return (
+    <div className="mt-6 rounded-lg border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+      <p className="text-xs font-medium text-slate-500">标注说明</p>
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="src-badge src-doc">📄 文件依据</span>
+          基于上传文件中的明确信息
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="src-badge src-data">✅ 数据提取</span>
+          已从文件中提取的量化数据
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="src-badge src-ai">🤖 AI 推断</span>
+          基于行业经验的判断，建议核实
+        </span>
       </div>
     </div>
   );
