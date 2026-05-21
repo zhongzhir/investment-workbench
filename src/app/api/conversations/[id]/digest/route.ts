@@ -72,6 +72,21 @@ function extractJson(raw: string): unknown {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+function describePgError(e: unknown) {
+  const err = e as {
+    code?: string;
+    message?: string;
+    detail?: string;
+    table?: string;
+  };
+  return {
+    code: err?.code,
+    message: err?.message,
+    detail: err?.detail,
+    table: err?.table,
+  };
+}
+
 // POST /api/conversations/[id]/digest — 提炼摘要（不入库）
 export async function POST(
   _req: Request,
@@ -82,13 +97,33 @@ export async function POST(
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  const rows = await query<ConvoRow>(
-    `SELECT c.id, c.title, c.project_id, p.name AS project_name, c.messages
-       FROM conversations c
-       LEFT JOIN projects p ON p.id = c.project_id
-      WHERE c.id = $1 AND c.user_id = $2`,
-    [params.id, session.user.id]
-  );
+  let rows: ConvoRow[];
+  try {
+    rows = await query<ConvoRow>(
+      `SELECT c.id, c.title, c.project_id, p.name AS project_name, c.messages
+         FROM conversations c
+         LEFT JOIN projects p ON p.id = c.project_id
+        WHERE c.id = $1 AND c.user_id = $2`,
+      [params.id, session.user.id]
+    );
+  } catch (e) {
+    const info = describePgError(e);
+    console.error("[conversation-digest][POST] 读取对话失败:", info, e);
+    if (info.code === "42P01") {
+      return NextResponse.json(
+        {
+          error:
+            "对话表不存在 —— 请在 Railway 控制台执行 db/migrations/013_conversations.sql",
+          code: info.code,
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: info.message || "读取对话失败", code: info.code },
+      { status: 500 }
+    );
+  }
   if (rows.length === 0) {
     return NextResponse.json({ error: "对话不存在" }, { status: 404 });
   }
@@ -203,11 +238,31 @@ export async function PUT(
     return NextResponse.json({ error: "摘要不能为空" }, { status: 422 });
   }
 
-  // 校验对话归属并取标题
-  const owned = await query<{ id: string; title: string | null }>(
-    "SELECT id, title FROM conversations WHERE id = $1 AND user_id = $2",
-    [params.id, session.user.id]
-  );
+  // 校验对话归属并取标题（容错：表不存在时给具体提示）
+  let owned: { id: string; title: string | null }[];
+  try {
+    owned = await query<{ id: string; title: string | null }>(
+      "SELECT id, title FROM conversations WHERE id = $1 AND user_id = $2",
+      [params.id, session.user.id]
+    );
+  } catch (e) {
+    const info = describePgError(e);
+    console.error("[conversation-digest][PUT] SELECT 失败:", info, e);
+    if (info.code === "42P01") {
+      return NextResponse.json(
+        {
+          error:
+            "对话表不存在 —— 请在 Railway 控制台执行 db/migrations/013_conversations.sql",
+          code: info.code,
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: info.message || "读取对话失败", code: info.code },
+      { status: 500 }
+    );
+  }
   if (owned.length === 0) {
     return NextResponse.json({ error: "对话不存在" }, { status: 404 });
   }
@@ -246,26 +301,57 @@ export async function PUT(
     metadata.project_name = projectName;
   }
 
-  const inserted = await query<{ id: string }>(
-    `INSERT INTO knowledge_base_entries
-       (user_id, content, source_type, entry_type, structured_data,
-        review_status, tags, metadata,
-        embedding, embedding_model, project_id)
-     VALUES ($1, $2, 'manual', 'conversation_digest', $3,
-             'approved', $4, $5,
-             $6, $7, $8)
-     RETURNING id`,
-    [
-      session.user.id,
-      structured.summary,
-      JSON.stringify(structured),
-      JSON.stringify(tags),
-      JSON.stringify(metadata),
-      embeddingValue,
-      embeddingModel,
-      body.project_id ?? null,
-    ]
-  );
+  let inserted: { id: string }[];
+  try {
+    inserted = await query<{ id: string }>(
+      `INSERT INTO knowledge_base_entries
+         (user_id, content, source_type, entry_type, structured_data,
+          review_status, tags, metadata,
+          embedding, embedding_model, project_id)
+       VALUES ($1, $2, 'manual', 'conversation_digest', $3,
+               'approved', $4, $5,
+               $6, $7, $8)
+       RETURNING id`,
+      [
+        session.user.id,
+        structured.summary,
+        JSON.stringify(structured),
+        JSON.stringify(tags),
+        JSON.stringify(metadata),
+        embeddingValue,
+        embeddingModel,
+        body.project_id ?? null,
+      ]
+    );
+  } catch (e) {
+    const info = describePgError(e);
+    console.error("[conversation-digest][PUT] INSERT 失败:", info, e);
+    if (info.code === "42P01" || info.code === "42703") {
+      return NextResponse.json(
+        {
+          error:
+            "知识库表/列缺失 —— 请确认已执行迁移 011 / 012；详细信息见服务端日志",
+          code: info.code,
+          detail: info.detail,
+        },
+        { status: 500 }
+      );
+    }
+    if (info.code === "23514") {
+      return NextResponse.json(
+        {
+          error: "knowledge_base_entries 的 CHECK 约束失败（可能是 entry_type 旧约束未更新），请执行迁移 012",
+          code: info.code,
+          detail: info.detail,
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: info.message || "存入知识库失败", code: info.code, detail: info.detail },
+      { status: 500 }
+    );
+  }
 
   // 顺手把摘要回写到 conversations.summary，方便列表展示
   try {

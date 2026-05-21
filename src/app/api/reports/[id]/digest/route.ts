@@ -87,6 +87,11 @@ function extractJson(raw: string): unknown {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+function describePgError(e: unknown) {
+  const err = e as { code?: string; message?: string; detail?: string };
+  return { code: err?.code, message: err?.message, detail: err?.detail };
+}
+
 // POST /api/reports/[id]/digest — 提炼对话认知摘要（不入库）
 export async function POST(
   _req: Request,
@@ -97,14 +102,24 @@ export async function POST(
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  const rows = await query<ReportRow>(
-    `SELECT r.id, r.project_id, r.content, r.conversation_history,
-            p.name AS project_name
-       FROM reports r
-       JOIN projects p ON p.id = r.project_id
-      WHERE r.id = $1 AND r.user_id = $2`,
-    [params.id, session.user.id]
-  );
+  let rows: ReportRow[];
+  try {
+    rows = await query<ReportRow>(
+      `SELECT r.id, r.project_id, r.content, r.conversation_history,
+              p.name AS project_name
+         FROM reports r
+         JOIN projects p ON p.id = r.project_id
+        WHERE r.id = $1 AND r.user_id = $2`,
+      [params.id, session.user.id]
+    );
+  } catch (e) {
+    const info = describePgError(e);
+    console.error("[report-digest][POST] SELECT 失败:", info, e);
+    return NextResponse.json(
+      { error: info.message || "读取报告失败", code: info.code },
+      { status: 500 }
+    );
+  }
   if (rows.length === 0) {
     return NextResponse.json({ error: "报告不存在" }, { status: 404 });
   }
@@ -225,10 +240,20 @@ export async function PUT(
   }
 
   // 验证报告归属
-  const owned = await query<{ id: string }>(
-    "SELECT id FROM reports WHERE id = $1 AND user_id = $2",
-    [params.id, session.user.id]
-  );
+  let owned: { id: string }[];
+  try {
+    owned = await query<{ id: string }>(
+      "SELECT id FROM reports WHERE id = $1 AND user_id = $2",
+      [params.id, session.user.id]
+    );
+  } catch (e) {
+    const info = describePgError(e);
+    console.error("[report-digest][PUT] SELECT reports 失败:", info, e);
+    return NextResponse.json(
+      { error: info.message || "读取报告失败", code: info.code },
+      { status: 500 }
+    );
+  }
   if (owned.length === 0) {
     return NextResponse.json({ error: "报告不存在" }, { status: 404 });
   }
@@ -262,27 +287,59 @@ export async function PUT(
     digested_at: new Date().toISOString(),
   };
 
-  const inserted = await query<{ id: string }>(
-    `INSERT INTO knowledge_base_entries
-       (user_id, content, source_type, entry_type, structured_data,
-        source_report_id, review_status, tags, metadata,
-        embedding, embedding_model, project_id)
-     VALUES ($1, $2, 'manual', 'conversation_digest', $3,
-             $4, 'approved', $5, $6,
-             $7, $8, $9)
-     RETURNING id`,
-    [
-      session.user.id,
-      structured.summary,
-      JSON.stringify(structured),
-      params.id,
-      JSON.stringify(tags),
-      JSON.stringify(metadata),
-      embeddingValue,
-      embeddingModel,
-      body.project_id,
-    ]
-  );
+  let inserted: { id: string }[];
+  try {
+    inserted = await query<{ id: string }>(
+      `INSERT INTO knowledge_base_entries
+         (user_id, content, source_type, entry_type, structured_data,
+          source_report_id, review_status, tags, metadata,
+          embedding, embedding_model, project_id)
+       VALUES ($1, $2, 'manual', 'conversation_digest', $3,
+               $4, 'approved', $5, $6,
+               $7, $8, $9)
+       RETURNING id`,
+      [
+        session.user.id,
+        structured.summary,
+        JSON.stringify(structured),
+        params.id,
+        JSON.stringify(tags),
+        JSON.stringify(metadata),
+        embeddingValue,
+        embeddingModel,
+        body.project_id,
+      ]
+    );
+  } catch (e) {
+    const info = describePgError(e);
+    console.error("[report-digest][PUT] INSERT 失败:", info, e);
+    if (info.code === "42P01" || info.code === "42703") {
+      return NextResponse.json(
+        {
+          error:
+            "知识库表/列缺失 —— 请确认已执行迁移 011 / 012；详情见服务端日志",
+          code: info.code,
+          detail: info.detail,
+        },
+        { status: 500 }
+      );
+    }
+    if (info.code === "23514") {
+      return NextResponse.json(
+        {
+          error:
+            "knowledge_base_entries 的 CHECK 约束失败（entry_type 旧约束未更新），请执行迁移 012",
+          code: info.code,
+          detail: info.detail,
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: info.message || "存入知识库失败", code: info.code, detail: info.detail },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ success: true, entry_id: inserted[0].id });
 }

@@ -17,11 +17,17 @@ export async function GET(
     return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
-  // 校验项目归属
-  const owned = await query<{ id: string }>(
-    "SELECT id FROM projects WHERE id = $1 AND user_id = $2",
-    [params.id, session.user.id]
-  );
+  // 校验项目归属（容错：表异常时返回空，避免 500 阻塞页面渲染）
+  let owned: { id: string }[] = [];
+  try {
+    owned = await query<{ id: string }>(
+      "SELECT id FROM projects WHERE id = $1 AND user_id = $2",
+      [params.id, session.user.id]
+    );
+  } catch (e) {
+    console.error("[pending-questions] 项目归属查询失败:", e);
+    return NextResponse.json({ questions: [] });
+  }
   if (owned.length === 0) {
     return NextResponse.json({ questions: [] });
   }

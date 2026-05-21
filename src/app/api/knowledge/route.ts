@@ -74,28 +74,44 @@ export async function POST(req: NextRequest) {
   }
   const tags = Array.isArray(body.tags) ? body.tags : [];
 
-  // 生成 embedding（百炼未配置或失败则仅保留全文检索）
+  // 生成 embedding（百炼未配置或失败则仅保留全文检索，不阻断写入）
   let embeddingVector: number[] | null = null;
   let embeddingModel: string | null = null;
-  const result = await generateEmbedding(content);
-  if (result) {
-    embeddingVector = result.vector;
-    embeddingModel = result.model;
+  try {
+    const result = await generateEmbedding(content);
+    if (result) {
+      embeddingVector = result.vector;
+      embeddingModel = result.model;
+    }
+  } catch (e) {
+    console.warn("[knowledge] embedding 失败，降级为纯文本入库:", e);
   }
 
-  const inserted = await query<KBRow>(
-    `INSERT INTO knowledge_base_entries
-       (user_id, content, source_type, tags, embedding, embedding_model)
-     VALUES ($1, $2, 'manual', $3, $4, $5)
-     RETURNING id, content, source_type, tags, embedding_model, created_at`,
-    [
-      session.user.id,
-      content,
-      JSON.stringify(tags),
-      embeddingVector ? `[${embeddingVector.join(",")}]` : null,
-      embeddingModel,
-    ]
-  );
-
-  return NextResponse.json({ entry: inserted[0] }, { status: 201 });
+  try {
+    const inserted = await query<KBRow>(
+      `INSERT INTO knowledge_base_entries
+         (user_id, content, source_type, tags, embedding, embedding_model)
+       VALUES ($1, $2, 'manual', $3, $4, $5)
+       RETURNING id, content, source_type, tags, embedding_model, created_at`,
+      [
+        session.user.id,
+        content,
+        JSON.stringify(tags),
+        embeddingVector ? `[${embeddingVector.join(",")}]` : null,
+        embeddingModel,
+      ]
+    );
+    return NextResponse.json({ entry: inserted[0] }, { status: 201 });
+  } catch (e) {
+    const err = e as { code?: string; message?: string; detail?: string };
+    console.error("[knowledge][POST] INSERT 失败:", err);
+    return NextResponse.json(
+      {
+        error: err.message || "存入知识库失败",
+        code: err.code,
+        detail: err.detail,
+      },
+      { status: 500 }
+    );
+  }
 }

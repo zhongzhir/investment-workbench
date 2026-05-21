@@ -53,6 +53,17 @@ export function DigestCard({
     ? `/api/conversations/${conversationId}/digest`
     : `/api/reports/${reportId}/digest`;
 
+  // 容错读取响应 JSON：HTML / 空响应 / 流截断都不再抛 "Unexpected end of JSON input"
+  async function readJsonSafe(res: Response): Promise<Record<string, unknown>> {
+    const text = await res.text();
+    if (!text.trim()) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: `服务端返回非 JSON（HTTP ${res.status}）` };
+    }
+  }
+
   async function digest() {
     setError("");
     setSkipReason("");
@@ -62,12 +73,17 @@ export function DigestCard({
         method: "POST",
         headers: JSON_HEADERS,
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok) {
-        throw new Error(json.error || "提炼失败");
+        console.error("[DigestCard] POST 失败", res.status, json);
+        throw new Error(
+          (json.error as string) || `提炼失败（HTTP ${res.status}）`
+        );
       }
       if (json.skip) {
-        setSkipReason(json.reason || "对话信息量不足，建议继续深入后再提炼");
+        setSkipReason(
+          (json.reason as string) || "对话信息量不足，建议继续深入后再提炼"
+        );
         setPhase("entry");
         return;
       }
@@ -75,6 +91,7 @@ export function DigestCard({
       setEditing(false);
       setPhase("preview");
     } catch (e) {
+      console.error("[DigestCard] 提炼异常", e);
       setError(e instanceof Error ? e.message : "提炼失败");
       setPhase("entry");
     }
@@ -93,13 +110,17 @@ export function DigestCard({
           project_name: projectName,
         }),
       });
-      const json = await res.json();
+      const json = await readJsonSafe(res);
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "存入失败");
+        console.error("[DigestCard] PUT 失败", res.status, json);
+        throw new Error(
+          (json.error as string) || `存入失败（HTTP ${res.status}）`
+        );
       }
       setPhase("done");
       onDigested?.();
     } catch (e) {
+      console.error("[DigestCard] 存入异常", e);
       setError(e instanceof Error ? e.message : "存入失败");
       setPhase("preview");
     }

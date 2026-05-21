@@ -178,8 +178,13 @@ export async function runAutoDigest(opts: RunOpts): Promise<{
     return { saved: false, skipped: true, reason: "无摘要" };
   }
 
-  // 向量化（百炼未配置则保留纯文本检索）
-  const emb = await generateEmbedding(structured.summary);
+  // 向量化（百炼未配置或失败则保留纯文本检索，不阻断写入）
+  let emb: Awaited<ReturnType<typeof generateEmbedding>> = null;
+  try {
+    emb = await generateEmbedding(structured.summary);
+  } catch (e) {
+    console.warn("[autoDigest] embedding 失败，降级为纯文本入库:", e);
+  }
   const embeddingModel = emb?.model ?? null;
   const embeddingValue = emb ? `[${emb.vector.join(",")}]` : null;
 
