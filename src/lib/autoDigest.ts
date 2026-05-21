@@ -78,6 +78,11 @@ interface RunOpts {
   provider: AIProvider;
   apiKey: string;
   baseURL?: string;
+  freeQuotaMeta?: {
+    userId: string;
+    phone: string;
+    feature: string;
+  };
 }
 
 // 同步执行（serverless 下不要 fire-and-forget；调用方决定是否阻塞）
@@ -108,6 +113,7 @@ export async function runAutoDigest(opts: RunOpts): Promise<{
       provider: opts.provider,
       apiKey: opts.apiKey,
       baseURL: opts.baseURL,
+      freeQuotaMeta: opts.freeQuotaMeta,
       system: await injectProfile(opts.userId, DIGEST_SYSTEM),
       messages: [
         {

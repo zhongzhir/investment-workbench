@@ -1,6 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatTokens } from "@/lib/freeQuota";
+
+interface QuotaStatus {
+  enabled: boolean;
+  available?: boolean;
+  tokensUsed?: number;
+  tokensLimit?: number;
+  tokensRemaining?: number;
+  reason?: string;
+}
 
 interface ProviderDef {
   value: string;
@@ -82,6 +92,7 @@ export function ApiKeyConfig({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [testState, setTestState] = useState<TestState>({ phase: "idle" });
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
 
   async function refresh() {
     const res = await fetch("/api/user/api-key");
@@ -99,6 +110,11 @@ export function ApiKeyConfig({
 
   useEffect(() => {
     refresh().finally(() => setLoading(false));
+    // 拉一次免费额度状态；失败静默忽略
+    fetch("/api/user/quota-status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setQuota(d))
+      .catch(() => setQuota(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -192,6 +208,25 @@ export function ApiKeyConfig({
           : "border-slate-200"
       }`}
     >
+      {/* 免费额度横幅：仅在用户未配置自己的 Key + 系统已启用代付时显示 */}
+      {!loading && !configured && quota?.enabled && quota.available && (
+        <div className="mb-3 rounded-r-lg border-l-4 border-[#3d7a5e] bg-[#3d7a5e10] p-3">
+          <p className="text-sm font-medium text-[#3d7a5e]">
+            🎁 你有 {formatTokens(quota.tokensRemaining ?? 0)} 免费额度可用
+          </p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            无需配置即可体验全部功能，额度用完后需配置自己的 API Key
+          </p>
+        </div>
+      )}
+      {!loading && !configured && quota?.enabled && quota.available === false && (
+        <div className="mb-3 rounded-r-lg border-l-4 border-[#FF6B35] bg-orange-50 p-3">
+          <p className="text-sm font-medium text-[#FF6B35]">
+            ⚠️ 免费额度已用完，请配置 API Key 继续使用
+          </p>
+        </div>
+      )}
+
       {showHighlight && (
         <div className="mb-3 rounded-lg border-l-4 border-[#1B6FE8] bg-[#1B6FE808] px-3 py-2 text-xs text-blue-700">
           ⚠️ 配置 API Key 后即可使用 AI 功能

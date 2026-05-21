@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat } from "@/lib/ai";
-import { loadUserAICredentials, streamTextResponse } from "@/lib/report";
+import {
+  loadUserAICredentials,
+  streamTextResponse,
+  freeQuotaMetaFor,
+} from "@/lib/report";
 import { injectProfile } from "@/lib/user-profile";
 import { STAGE_LABELS } from "@/lib/stages";
 
@@ -254,6 +258,7 @@ export async function POST(
     provider: creds.provider,
     apiKey: creds.apiKey,
     baseURL: creds.baseURL,
+    freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "decision"),
     system: await injectProfile(
       session.user.id,
       "你是一位资深的一级股权投资专家，输出使用简体中文与 Markdown 格式。"

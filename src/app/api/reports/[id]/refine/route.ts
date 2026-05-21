@@ -6,6 +6,7 @@ import {
   buildRefineMessages,
   loadUserAICredentials,
   streamTextResponse,
+  freeQuotaMetaFor,
 } from "@/lib/report";
 import { injectProfile } from "@/lib/user-profile";
 
@@ -66,6 +67,7 @@ export async function POST(
     provider: creds.provider,
     apiKey: creds.apiKey,
     baseURL: creds.baseURL,
+    freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "report-refine"),
     system: await injectProfile(session.user.id, system),
     messages,
   });

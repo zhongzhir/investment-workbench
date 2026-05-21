@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat } from "@/lib/ai";
-import { loadUserAICredentials } from "@/lib/report";
+import { loadUserAICredentials, freeQuotaMetaFor } from "@/lib/report";
 import { injectProfile } from "@/lib/user-profile";
 import type { FinancialData } from "@/lib/types";
 
@@ -197,6 +197,7 @@ export async function POST(
       provider: creds.provider,
       apiKey: creds.apiKey,
       baseURL: creds.baseURL,
+      freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "financials"),
       system: await injectProfile(session.user.id, SYSTEM_PROMPT),
       messages: [{ role: "user", content: bpText }],
     })) {

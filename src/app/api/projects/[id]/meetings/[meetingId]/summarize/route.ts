@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat } from "@/lib/ai";
-import { loadUserAICredentials } from "@/lib/report";
+import { loadUserAICredentials, freeQuotaMetaFor } from "@/lib/report";
 import { injectProfile } from "@/lib/user-profile";
 
 export const maxDuration = 120;
@@ -76,6 +76,7 @@ ${meeting.content}
       provider: creds.provider,
       apiKey: creds.apiKey,
       baseURL: creds.baseURL,
+      freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "meeting-summarize"),
       system: await injectProfile(
         session.user.id,
         "你是投后管理专家，只输出合法 JSON，不输出任何其他内容。"

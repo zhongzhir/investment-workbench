@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { consumeQuota } from "@/lib/freeQuota";
 
 // 统一 AI 调用层。
 // 关键约束：平台不存储 API Key —— Key 由调用方（API 路由）从请求头透传进来，
@@ -27,6 +28,12 @@ export interface ChatRequest {
   model?: string;
   // 覆盖默认 baseURL（仅对 OpenAI 兼容协议有效；Claude 走 Anthropic SDK 不读此值）
   baseURL?: string;
+  // 若使用平台免费额度，传入用户 / 手机号 / 功能名；流结束后会扣减额度
+  freeQuotaMeta?: {
+    userId: string;
+    phone: string;
+    feature: string;
+  };
 }
 
 // OpenAI 兼容协议的服务商配置（DeepSeek / 通义千问 / 天翼 Token 均兼容 OpenAI 接口）
@@ -104,13 +111,33 @@ export async function* streamChat(
   // 用户自定义 baseURL 优先（如天翼 Token / 自部署网关）
   const baseURL = req.baseURL?.trim() || cfg.baseURL;
   const client = new OpenAI({ apiKey: req.apiKey, baseURL });
+  // 平台代付：开启 include_usage 让最后一帧带 usage，用于扣减额度
+  const wantUsage = !!req.freeQuotaMeta;
   const stream = await client.chat.completions.create({
     model: req.model || cfg.defaultModel,
     stream: true,
     messages: [{ role: "system", content: req.system }, ...req.messages],
+    ...(wantUsage ? { stream_options: { include_usage: true } } : {}),
   });
+  let promptTokens = 0;
+  let completionTokens = 0;
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content;
     if (delta) yield delta;
+    // OpenAI 兼容协议：include_usage 时最后一帧 usage 字段会出现
+    const u = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+    if (u) {
+      promptTokens = u.prompt_tokens ?? promptTokens;
+      completionTokens = u.completion_tokens ?? completionTokens;
+    }
+  }
+  if (req.freeQuotaMeta && (promptTokens > 0 || completionTokens > 0)) {
+    await consumeQuota(
+      req.freeQuotaMeta.userId,
+      req.freeQuotaMeta.phone,
+      promptTokens,
+      completionTokens,
+      req.freeQuotaMeta.feature
+    );
   }
 }

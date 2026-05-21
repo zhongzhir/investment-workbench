@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { streamChat } from "@/lib/ai";
-import { loadUserAICredentials } from "@/lib/report";
+import { loadUserAICredentials, freeQuotaMetaFor } from "@/lib/report";
 import { injectProfile } from "@/lib/user-profile";
 
 export const maxDuration = 60;
@@ -51,6 +51,7 @@ export async function POST(req: Request) {
       provider: creds.provider,
       apiKey: creds.apiKey,
       baseURL: creds.baseURL,
+      freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "skill-gen-prompt"),
       system: await injectProfile(session.user.id, SKILL_GEN_SYSTEM),
       messages: [
         {

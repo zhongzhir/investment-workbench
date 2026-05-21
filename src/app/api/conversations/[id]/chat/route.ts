@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat, type ChatMessage } from "@/lib/ai";
-import { loadUserAICredentials } from "@/lib/report";
+import { loadUserAICredentials, freeQuotaMetaFor } from "@/lib/report";
 import { buildMemoryContext } from "@/lib/memoryContext";
 import { runAutoDigest, shouldAutoDigest } from "@/lib/autoDigest";
 import { STAGE_LABELS } from "@/lib/stages";
@@ -101,6 +101,7 @@ async function generateTitle(
   provider: ReturnType<typeof Object>,
   apiKey: string,
   baseURL: string | undefined,
+  freeQuotaMeta: { userId: string; phone: string; feature: string } | undefined,
   firstMessage: string,
   reply: string
 ): Promise<string | null> {
@@ -110,6 +111,7 @@ async function generateTitle(
       provider: provider as never,
       apiKey,
       baseURL,
+      freeQuotaMeta,
       system:
         "你为一段对话生成一个 10 字以内的简洁标题，只输出标题文字本身，不要引号、不要标点、不要解释。",
       messages: [
@@ -196,6 +198,7 @@ export async function POST(
     provider: creds.provider,
     apiKey: creds.apiKey,
     baseURL: creds.baseURL,
+    freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "chat"),
     system: systemPrompt,
     messages,
   });
@@ -273,6 +276,7 @@ export async function POST(
           creds.provider,
           creds.apiKey,
           creds.baseURL,
+          freeQuotaMetaFor(creds, session.user.id, "chat-title"),
           userMessage,
           full
         );
@@ -310,6 +314,7 @@ export async function POST(
             provider: creds.provider,
             apiKey: creds.apiKey,
             baseURL: creds.baseURL,
+            freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "auto-digest"),
           });
           if (result.saved) {
             controller.enqueue(

@@ -6,6 +6,7 @@ import {
   buildGenerationMessages,
   loadUserAICredentials,
   streamTextResponse,
+  freeQuotaMetaFor,
 } from "@/lib/report";
 import { injectProfile } from "@/lib/user-profile";
 import type { FinancialData } from "@/lib/types";
@@ -115,6 +116,7 @@ export async function POST(
     provider: creds.provider,
     apiKey: creds.apiKey,
     baseURL: creds.baseURL,
+    freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "report-generate"),
     system: await injectProfile(session.user.id, system),
     messages,
   });

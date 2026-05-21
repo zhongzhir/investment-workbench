@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat } from "@/lib/ai";
-import { loadUserAICredentials } from "@/lib/report";
+import { loadUserAICredentials, freeQuotaMetaFor } from "@/lib/report";
 import { isValidSkillCategory } from "@/lib/skills";
 
 export const maxDuration = 90;
@@ -102,6 +102,7 @@ export async function POST() {
       provider: creds.provider,
       apiKey: creds.apiKey,
       baseURL: creds.baseURL,
+      freeQuotaMeta: freeQuotaMetaFor(creds, session.user.id, "skill-from-judgments"),
       system: JUDGMENT_ANALYSIS_SYSTEM,
       messages: [
         {

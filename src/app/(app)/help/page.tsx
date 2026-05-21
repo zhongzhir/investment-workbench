@@ -107,6 +107,24 @@ export default function HelpPage() {
           </article>
         ))}
       </div>
+
+      {/* 联系方式 */}
+      <div className="mt-8 rounded-r-lg border-l-4 border-[#1B6FE8] bg-blue-50 p-4">
+        <p className="mb-1 text-sm font-medium text-[#1B6FE8]">🚀 公测阶段</p>
+        <p className="text-sm text-slate-600">
+          Aivestor 目前处于公测阶段，产品仍在持续迭代中。
+          如果你在使用过程中遇到任何问题，或有功能建议、合作意向，欢迎随时联系我们：
+        </p>
+        <a
+          href="mailto:Aivestor@qq.com"
+          className="mt-1 inline-block text-sm font-medium text-[#1B6FE8] hover:underline"
+        >
+          Aivestor@qq.com
+        </a>
+        <p className="mt-1 text-xs text-slate-400">
+          你的每一条反馈都会被认真阅读。
+        </p>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { type AIProvider, type ChatMessage, isValidProvider } from "@/lib/ai";
 import { decrypt } from "@/lib/crypto";
 import { query } from "@/lib/db";
+import { getSystemApiKey, getFreeQuotaStatus } from "@/lib/freeQuota";
 import type { FinancialData, FinPoint } from "@/lib/types";
 
 // 报告生成 / 修改的 prompt 构建与流式响应工具。
@@ -196,14 +197,36 @@ ${params.instruction}
   };
 }
 
-// 从数据库读取并解密用户存储的 AI 凭据 + 可选的自定义 baseURL。
-export async function loadUserAICredentials(
-  userId: string
-): Promise<{
+// 把凭据 + userId + feature 名打包成 streamChat 需要的 freeQuotaMeta；
+// 仅在使用免费额度时返回非 undefined，否则返回 undefined（streamChat 跳过扣减）。
+export function freeQuotaMetaFor(
+  creds: UserCredentials,
+  userId: string,
+  feature: string
+): { userId: string; phone: string; feature: string } | undefined {
+  if (!creds.usingFreeQuota || !creds.phone) return undefined;
+  return { userId, phone: creds.phone, feature };
+}
+
+// 凭据返回的统一形状：包含可选的免费额度元信息。
+// 调用方根据 usingFreeQuota 决定是否在 streamChat 里挂 freeQuotaMeta。
+export interface UserCredentials {
   provider: AIProvider;
   apiKey: string;
   baseURL?: string;
-} | null> {
+  usingFreeQuota: boolean;
+  phone?: string | null;
+  tokensRemaining?: number;
+}
+
+// 从数据库读取并解密用户存储的 AI 凭据。
+// 优先级：
+//   1. 用户自己的 Key
+//   2. 系统 Key + 手机号 + 免费额度未耗尽 → 平台代付
+//   3. 都不满足 → 返回 null（调用方走原有 400 错误）
+export async function loadUserAICredentials(
+  userId: string
+): Promise<UserCredentials | null> {
   // ai_base_url 由迁移 016 引入，旧库可能不存在 —— try/catch 兼容。
   let row: {
     api_key_encrypted: string | null;
@@ -231,21 +254,43 @@ export async function loadUserAICredentials(
       ? { ...fallback[0], ai_base_url: null }
       : undefined;
   }
-  if (!row?.api_key_encrypted) return null;
 
-  const provider: AIProvider =
-    row.ai_provider && isValidProvider(row.ai_provider)
-      ? row.ai_provider
-      : "deepseek";
-  try {
-    return {
-      provider,
-      apiKey: decrypt(row.api_key_encrypted),
-      baseURL: row.ai_base_url?.trim() || undefined,
-    };
-  } catch {
-    return null;
+  // 1. 用户自己的 Key
+  if (row?.api_key_encrypted) {
+    const provider: AIProvider =
+      row.ai_provider && isValidProvider(row.ai_provider)
+        ? row.ai_provider
+        : "deepseek";
+    try {
+      return {
+        provider,
+        apiKey: decrypt(row.api_key_encrypted),
+        baseURL: row.ai_base_url?.trim() || undefined,
+        usingFreeQuota: false,
+        phone: null,
+      };
+    } catch {
+      // 解密失败：当作没 Key，往下走免费额度兜底
+    }
   }
+
+  // 2. 系统 Key + 免费额度兜底
+  const systemKey = getSystemApiKey();
+  if (systemKey) {
+    const quota = await getFreeQuotaStatus(userId);
+    if (quota?.available) {
+      return {
+        provider: "deepseek",
+        apiKey: systemKey,
+        baseURL: "https://api.deepseek.com/v1",
+        usingFreeQuota: true,
+        phone: quota.phone,
+        tokensRemaining: quota.tokensRemaining,
+      };
+    }
+  }
+
+  return null;
 }
 
 // 把 AI 文本增量流包装为 HTTP 流式响应；流结束后执行 onComplete 持久化。
