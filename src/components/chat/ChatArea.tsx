@@ -55,6 +55,8 @@ export function ChatArea({
     messageIndex: number;
   } | null>(null);
   const [prefSaved, setPrefSaved] = useState(false);
+  const [prefError, setPrefError] = useState("");
+  const [prefSaving, setPrefSaving] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -186,25 +188,40 @@ export function ChatArea({
   }
 
   async function confirmPref() {
-    if (!pendingPref) return;
+    if (!pendingPref || prefSaving) return;
+    setPrefError("");
+    setPrefSaving(true);
     try {
       const res = await fetch("/api/user/profile/append-pref", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pref: pendingPref.pref }),
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
         setPrefSaved(true);
         window.setTimeout(() => setPendingPref(null), 2000);
+      } else {
+        const detail =
+          data?.error ||
+          `保存失败（HTTP ${res.status}）。请稍后重试。`;
+        console.error("[append-pref] 失败", res.status, data);
+        setPrefError(detail);
       }
-    } catch {
-      // 失败时保留条，让用户再次尝试
+    } catch (e) {
+      console.error("[append-pref] 网络异常", e);
+      setPrefError(
+        e instanceof Error ? e.message : "网络异常，请稍后重试"
+      );
+    } finally {
+      setPrefSaving(false);
     }
   }
 
   function dismissPref() {
     setPendingPref(null);
     setPrefSaved(false);
+    setPrefError("");
   }
 
   function stop() {
@@ -269,6 +286,8 @@ export function ChatArea({
                     <PrefConfirmBar
                       pref={pendingPref.pref}
                       saved={prefSaved}
+                      saving={prefSaving}
+                      error={prefError}
                       onConfirm={confirmPref}
                       onDismiss={dismissPref}
                     />
@@ -422,11 +441,15 @@ function MessageBubble({
 function PrefConfirmBar({
   pref,
   saved,
+  saving,
+  error,
   onConfirm,
   onDismiss,
 }: {
   pref: string;
   saved: boolean;
+  saving: boolean;
+  error: string;
   onConfirm: () => void;
   onDismiss: () => void;
 }) {
@@ -438,26 +461,35 @@ function PrefConfirmBar({
     );
   }
   return (
-    <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border-l-2 border-blue-500 bg-[#1B6FE808] px-3 py-2 text-xs">
-      <p className="flex-1 text-ink-soft">
-        💡 发现新偏好：「<span className="text-ink">{pref}</span>」
-      </p>
-      <div className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          onClick={onConfirm}
-          className="rounded border border-blue-500 bg-white px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
-        >
-          加入画像
-        </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-50"
-        >
-          忽略
-        </button>
+    <div className="mt-2 rounded-lg border-l-2 border-blue-500 bg-[#1B6FE808] px-3 py-2 text-xs">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex-1 text-ink-soft">
+          💡 发现新偏好：「<span className="text-ink">{pref}</span>」
+        </p>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="rounded border border-blue-500 bg-white px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+          >
+            {saving ? "保存中…" : "加入画像"}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={saving}
+            className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+          >
+            忽略
+          </button>
+        </div>
       </div>
+      {error && (
+        <p className="mt-1.5 rounded bg-red-50 px-2 py-1 text-xs text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
