@@ -9,6 +9,7 @@ import {
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { stripSourceBadges } from "@/lib/reportBadges";
+import { extractConfidence } from "@/lib/reportConfidence";
 
 // 把一行文本中的 **加粗** 标记转为 docx TextRun。
 function inlineRuns(text: string): TextRun[] {
@@ -89,7 +90,9 @@ export async function GET(
             heading: HeadingLevel.TITLE,
             children: [new TextRun({ text: report.title })],
           }),
-          ...markdownToParagraphs(stripSourceBadges(report.content)),
+          ...markdownToParagraphs(
+            stripSourceBadges(extractConfidence(report.content).cleanContent)
+          ),
         ],
       },
     ],

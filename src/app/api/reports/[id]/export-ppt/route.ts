@@ -3,6 +3,7 @@ import pptxgen from "pptxgenjs";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { stripSourceBadges } from "@/lib/reportBadges";
+import { extractConfidence } from "@/lib/reportConfidence";
 import type { FinancialData } from "@/lib/types";
 
 // 品牌色
@@ -84,7 +85,9 @@ export async function GET(
     return NextResponse.json({ error: "报告不存在" }, { status: 404 });
   }
   const report = rows[0];
-  const sections = parseSections(stripSourceBadges(report.content));
+  const sections = parseSections(
+    stripSourceBadges(extractConfidence(report.content).cleanContent)
+  );
 
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE"; // 13.33 x 7.5 英寸

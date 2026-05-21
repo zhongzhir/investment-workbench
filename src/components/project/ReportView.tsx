@@ -9,6 +9,8 @@ import { FinancialCharts } from "./FinancialCharts";
 import { DigestCard } from "@/components/report/DigestCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { renderSourceBadges } from "@/lib/reportBadges";
+import { extractConfidence } from "@/lib/reportConfidence";
+import { ConfidencePanel } from "@/components/report/ConfidencePanel";
 import type { FinancialData } from "@/lib/types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -224,28 +226,37 @@ export function ReportView({
         </div>
       )}
 
-      {/* 报告正文 */}
-      <article className="report-body mt-6 min-h-[200px]">
-        {content ? (
+      {/* 报告正文：先剥离置信度块，再渲染溯源徽章 */}
+      {(() => {
+        if (!content) {
+          return (
+            <article className="report-body mt-6 min-h-[200px]">
+              {streaming ? (
+                <p className="text-sm text-ink-faint">等待 AI 输出…</p>
+              ) : (
+                <EmptyState
+                  icon="📄"
+                  title="还没有报告"
+                  description="上传文档后生成第一份分析报告"
+                />
+              )}
+            </article>
+          );
+        }
+        // 流式过程中保留原始内容（标记尚未完整，extractConfidence 会返回原文）
+        const { confidence, cleanContent } = extractConfidence(content);
+        const rendered = renderSourceBadges(cleanContent);
+        return (
           <>
-            <ReactMarkdown rehypePlugins={[rehypeRaw]}>
-              {renderSourceBadges(content)}
-            </ReactMarkdown>
-            {streaming && <span className="type-cursor" />}
+            <article className="report-body mt-6 min-h-[200px]">
+              <ReactMarkdown rehypePlugins={[rehypeRaw]}>{rendered}</ReactMarkdown>
+              {streaming && <span className="type-cursor" />}
+            </article>
+            {confidence && !streaming && <ConfidencePanel data={confidence} />}
+            {!streaming && <SourceLegend />}
           </>
-        ) : streaming ? (
-          <p className="text-sm text-ink-faint">等待 AI 输出…</p>
-        ) : (
-          <EmptyState
-            icon="📄"
-            title="还没有报告"
-            description="上传文档后生成第一份分析报告"
-          />
-        )}
-      </article>
-
-      {/* 溯源图例：仅在有报告内容时显示 */}
-      {content && !streaming && <SourceLegend />}
+        );
+      })()}
 
       {/* 修改历史 */}
       {history.length > 0 && (
