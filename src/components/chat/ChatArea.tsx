@@ -49,6 +49,12 @@ export function ChatArea({
     []
   );
   const [error, setError] = useState("");
+  // 偏好捕获条：(messageIndex, pref)，messageIndex 指向 messages 数组中的 AI 消息
+  const [pendingPref, setPendingPref] = useState<{
+    pref: string;
+    messageIndex: number;
+  } | null>(null);
+  const [prefSaved, setPrefSaved] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -87,6 +93,7 @@ export function ChatArea({
 
     let fullReply = "";
     let sources: ChatMsg["sources"] = [];
+    let savePref: string | null = null;
     try {
       const res = await fetch(
         `/api/conversations/${conversation.id}/chat`,
@@ -127,6 +134,10 @@ export function ChatArea({
               setStreamingText(fullReply);
             } else if (msg.type === "title") {
               onTitleUpdate(conversation.id, msg.title);
+            } else if (msg.type === "save_pref") {
+              savePref = typeof msg.pref === "string" ? msg.pref : null;
+            } else if (msg.type === "auto_digest") {
+              // 自动沉淀已落库；当前不做强提示，保留埋点位置
             } else if (msg.type === "error") {
               throw new Error(msg.error);
             }
@@ -147,9 +158,18 @@ export function ChatArea({
       abortRef.current = null;
     }
 
+    // 兜底：即使后端没发 save_pref SSE 事件，也能从 fullReply 里抠出来
+    if (!savePref) {
+      const m = fullReply.match(/\[SAVE_PREF:\s*(.+?)\]/);
+      if (m) savePref = m[1].trim();
+    }
+    const cleanedReply = fullReply
+      .replace(/\n?\[SAVE_PREF:\s*.+?\]\s*$/, "")
+      .trim();
+
     const assistantMsg: ChatMsg = {
       role: "assistant",
-      content: fullReply,
+      content: cleanedReply,
       ts: new Date().toISOString(),
       sources,
     };
@@ -158,7 +178,33 @@ export function ChatArea({
     setStreaming(false);
     setStreamingText("");
     setStreamingSources([]);
+    if (savePref) {
+      setPendingPref({ pref: savePref, messageIndex: finalMessages.length - 1 });
+      setPrefSaved(false);
+    }
     onMessagesChange(conversation.id, finalMessages);
+  }
+
+  async function confirmPref() {
+    if (!pendingPref) return;
+    try {
+      const res = await fetch("/api/user/profile/append-pref", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pref: pendingPref.pref }),
+      });
+      if (res.ok) {
+        setPrefSaved(true);
+        window.setTimeout(() => setPendingPref(null), 2000);
+      }
+    } catch {
+      // 失败时保留条，让用户再次尝试
+    }
+  }
+
+  function dismissPref() {
+    setPendingPref(null);
+    setPrefSaved(false);
   }
 
   function stop() {
@@ -215,7 +261,19 @@ export function ChatArea({
         ) : (
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((m, i) => (
-              <MessageBubble key={i} message={m} />
+              <div key={i}>
+                <MessageBubble message={m} />
+                {pendingPref &&
+                  pendingPref.messageIndex === i &&
+                  m.role === "assistant" && (
+                    <PrefConfirmBar
+                      pref={pendingPref.pref}
+                      saved={prefSaved}
+                      onConfirm={confirmPref}
+                      onDismiss={dismissPref}
+                    />
+                  )}
+              </div>
             ))}
             {streaming && (
               <MessageBubble
@@ -356,6 +414,49 @@ function MessageBubble({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PrefConfirmBar({
+  pref,
+  saved,
+  onConfirm,
+  onDismiss,
+}: {
+  pref: string;
+  saved: boolean;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  if (saved) {
+    return (
+      <div className="mt-2 rounded-lg border-l-2 border-blue-500 bg-[#1B6FE808] px-3 py-2 text-xs text-blue-700 transition-opacity duration-500">
+        ✅ 已加入你的投资人画像
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border-l-2 border-blue-500 bg-[#1B6FE808] px-3 py-2 text-xs">
+      <p className="flex-1 text-ink-soft">
+        💡 发现新偏好：「<span className="text-ink">{pref}</span>」
+      </p>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="rounded border border-blue-500 bg-white px-2 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+        >
+          加入画像
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-50"
+        >
+          忽略
+        </button>
       </div>
     </div>
   );

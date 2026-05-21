@@ -3,8 +3,8 @@ import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { streamChat, type ChatMessage } from "@/lib/ai";
 import { loadUserAICredentials } from "@/lib/report";
-import { injectProfile } from "@/lib/user-profile";
-import { generateEmbedding } from "@/lib/embedding";
+import { buildMemoryContext } from "@/lib/memoryContext";
+import { runAutoDigest, shouldAutoDigest } from "@/lib/autoDigest";
 import { STAGE_LABELS } from "@/lib/stages";
 
 export const maxDuration = 120;
@@ -35,12 +35,6 @@ interface JudgmentRow {
   created_at: string;
 }
 
-interface KBChunk {
-  content: string;
-  source_type: string | null;
-  score: number;
-}
-
 const BASE_SYSTEM = `你是 Aivestor 的 AI 助手，专为一级股权投资人设计。
 
 你的角色：
@@ -52,7 +46,19 @@ const BASE_SYSTEM = `你是 Aivestor 的 AI 助手，专为一级股权投资人
 对话风格：
 - 直接、专业，不客套
 - 善用追问帮助投资人深化思考
-- 重要观点用清晰的结构表达`;
+- 重要观点用清晰的结构表达
+
+【偏好捕获】
+当你在对话中发现用户表达了【新的】投资偏好、判断标准或规避模式时，
+在回答末尾另起一行输出：
+[SAVE_PREF: 用一句话总结这个新偏好]
+
+例如：[SAVE_PREF: 偏好创始人有大厂背景，对纯学术创业团队持谨慎态度]
+
+规则：
+- 每次对话最多触发一次，且只在发现真正有价值的【新】偏好时触发，不要滥用
+- 如果该偏好已在投资人画像中体现，请不要重复触发
+- 标记必须独占一行，写在所有正文内容之后`;
 
 async function buildProjectContext(
   projectId: string,
@@ -88,51 +94,6 @@ async function buildProjectContext(
     }
   }
   return lines.join("\n");
-}
-
-async function retrieveKnowledge(
-  userId: string,
-  question: string
-): Promise<KBChunk[]> {
-  // 优先向量检索，未配置百炼则回退全文检索
-  const embResult = await generateEmbedding(question);
-  if (embResult) {
-    const rows = await query<KBChunk>(
-      `SELECT content, source_type,
-              1 - (embedding <=> $2::vector) AS score
-         FROM knowledge_base_entries
-        WHERE user_id = $1
-          AND embedding IS NOT NULL
-        ORDER BY embedding <=> $2::vector
-        LIMIT 3`,
-      [userId, `[${embResult.vector.join(",")}]`]
-    );
-    return rows;
-  }
-
-  const rows = await query<KBChunk>(
-    `SELECT content, source_type,
-            ts_rank(search_vector, plainto_tsquery('simple', $2)) AS score
-       FROM knowledge_base_entries
-      WHERE user_id = $1
-        AND search_vector @@ plainto_tsquery('simple', $2)
-      ORDER BY score DESC
-      LIMIT 3`,
-    [userId, question]
-  );
-  return rows;
-}
-
-function buildKnowledgeSection(chunks: KBChunk[]): string {
-  if (chunks.length === 0) return "";
-  const items = chunks.map(
-    (c, i) =>
-      `[${i + 1}] (来源: ${c.source_type ?? "未知"}) ${c.content.slice(
-        0,
-        200
-      )}`
-  );
-  return `## 相关知识库内容（自动检索）\n${items.join("\n\n")}`;
 }
 
 // 简易标题生成：取首条用户消息，让 AI 起 10 字以内标题
@@ -210,17 +171,18 @@ export async function POST(
     );
   }
 
-  // 构造 system prompt：profile + project + knowledge
+  // 构造 system prompt：memoryContext（画像 + 近期沉淀 + 相关知识库）+ 项目上下文
   const projectSection = convo.project_id
     ? await buildProjectContext(convo.project_id, session.user.id)
     : "";
-  const kbChunks = await retrieveKnowledge(session.user.id, userMessage);
-  const knowledgeSection = buildKnowledgeSection(kbChunks);
+  const memory = await buildMemoryContext(session.user.id, userMessage);
+  const memoryHeader = memory.context
+    ? `以下是关于这位投资人的背景信息，请在回答中自然地结合这些信息：\n\n${memory.context}\n\n---`
+    : "";
 
-  const composed = [BASE_SYSTEM, projectSection, knowledgeSection]
+  const systemPrompt = [memoryHeader, BASE_SYSTEM, projectSection]
     .filter(Boolean)
     .join("\n\n");
-  const systemPrompt = await injectProfile(session.user.id, composed);
 
   // 把历史 + 当前消息组装为 messages
   const messages: ChatMessage[] = [
@@ -236,7 +198,7 @@ export async function POST(
   });
 
   const encoder = new TextEncoder();
-  const sourcesMeta = kbChunks.map((c) => ({
+  const sourcesMeta = memory.sources.map((c) => ({
     content: c.content,
     source_type: c.source_type,
   }));
@@ -268,12 +230,30 @@ export async function POST(
         );
       }
 
-      // 持久化对话
+      // 检测并剥离 [SAVE_PREF: ...] 标记（不写入持久化对话，前端会单独处理）
+      const prefMatch = full.match(/\[SAVE_PREF:\s*(.+?)\]/);
+      const detectedPref = prefMatch ? prefMatch[1].trim() : null;
+      const cleanedReply = prefMatch
+        ? full.replace(/\n?\[SAVE_PREF:\s*.+?\]\s*$/, "").trim()
+        : full;
+
+      if (detectedPref) {
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "save_pref",
+              pref: detectedPref,
+            })}\n\n`
+          )
+        );
+      }
+
+      // 持久化对话（保存去掉标记后的版本）
       const now = new Date().toISOString();
       const updated: Msg[] = [
         ...history,
         { role: "user", content: userMessage, ts: now },
-        { role: "assistant", content: full, ts: new Date().toISOString() },
+        { role: "assistant", content: cleanedReply, ts: new Date().toISOString() },
       ];
       try {
         await query(
@@ -306,6 +286,35 @@ export async function POST(
           } catch (e) {
             console.error("[conversations] 标题保存失败:", e);
           }
+        }
+      }
+
+      // 自动沉淀：达到阈值时同步触发（serverless 下不做 fire-and-forget）
+      const totalCount = updated.length;
+      if (shouldAutoDigest(totalCount)) {
+        try {
+          const result = await runAutoDigest({
+            conversationId: params.id,
+            userId: session.user.id,
+            title: convo.title,
+            projectId: convo.project_id,
+            projectName: null,
+            messages: updated.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            provider: creds.provider,
+            apiKey: creds.apiKey,
+          });
+          if (result.saved) {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "auto_digest" })}\n\n`
+              )
+            );
+          }
+        } catch (e) {
+          console.error("[conversations] auto-digest 失败:", e);
         }
       }
 
