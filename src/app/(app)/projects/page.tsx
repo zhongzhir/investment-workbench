@@ -60,6 +60,7 @@ export default async function ProjectsPage() {
             description="创建第一个项目，上传 BP 开始分析"
             action={{ label: "新建项目分析", href: "/projects/new" }}
           />
+          <DemoCards />
         </div>
       ) : (
         <ul className="mt-8 space-y-2">
@@ -102,6 +103,57 @@ export default async function ProjectsPage() {
           ))}
         </ul>
       )}
+
+      {/* 示例项目入口（任何状态下都展示，便于已有项目的用户也能去看） */}
+      {projects.length > 0 && (
+        <div className="mt-12 border-t border-slate-200 pt-6">
+          <DemoCards />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DemoCards() {
+  const demos = [
+    {
+      href: "/demo/consumer",
+      icon: "🍵",
+      title: "野兽派茶（消费品牌）",
+      desc: "新消费 · Pre-A · 2000 万",
+    },
+    {
+      href: "/demo/saas",
+      icon: "🔌",
+      title: "DataSync Pro（企业 SaaS）",
+      desc: "数据集成中间件 · A 轮 · 5000 万",
+    },
+  ];
+  return (
+    <div className="mt-6">
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+        示例项目 · 只读
+      </p>
+      <p className="mt-1 text-xs text-slate-400">
+        无需登录即可浏览，看看 Aivestor 生成的报告长什么样
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {demos.map((d) => (
+          <Link
+            key={d.href}
+            href={d.href}
+            className="card-base card-hover block p-4"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none">{d.icon}</span>
+              <div>
+                <p className="text-sm font-medium text-slate-800">{d.title}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{d.desc}</p>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

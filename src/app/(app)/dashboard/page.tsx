@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 
 // 首页（/dashboard）：以文档为中心的概览，大量留白，引导进入核心动线。
 const QUICK_ACTIONS = [
@@ -53,8 +54,23 @@ export default async function DashboardPage() {
       )
     : [];
 
+  // 引导弹窗：用户首次登录后弹一次；字段不存在（迁移未跑）则视作 false 弹一次
+  let showOnboarding = false;
+  if (user) {
+    try {
+      const rows = await query<{ onboarding_completed: boolean | null }>(
+        "SELECT onboarding_completed FROM users WHERE id = $1",
+        [user.id]
+      );
+      showOnboarding = !rows[0]?.onboarding_completed;
+    } catch {
+      showOnboarding = true;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-doc px-6 py-16">
+      <OnboardingGate show={showOnboarding} />
       <p className="text-sm text-ink-faint">
         {user ? `欢迎回来，${user.name}` : "欢迎"}
       </p>
