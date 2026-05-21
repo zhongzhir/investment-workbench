@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SKILL_CATEGORIES, SKILL_STAGES, STAGE_LABELS } from "@/lib/skills";
 
 interface Props {
@@ -16,6 +16,40 @@ export function CreateSkillModal({ onClose, onCreated }: Props) {
   const [template, setTemplate] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // AI 帮我写
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiDesc, setAiDesc] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const templateRef = useRef<HTMLTextAreaElement>(null);
+
+  async function aiGenerate() {
+    const desc = aiDesc.trim();
+    if (!desc) {
+      setAiError("请描述你想要的分析方向");
+      return;
+    }
+    setAiBusy(true);
+    setAiError("");
+    try {
+      const res = await fetch("/api/skills/generate-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: desc }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "生成失败");
+      setTemplate(j.prompt || "");
+      setAiOpen(false);
+      setAiDesc("");
+      // 聚焦 prompt 输入框
+      window.setTimeout(() => templateRef.current?.focus(), 50);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "生成失败");
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   function toggleStage(s: string) {
     setStages((prev) =>
@@ -128,20 +162,73 @@ export function CreateSkillModal({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-ink-soft">
-              Prompt 模板 <span className="text-red-500">*</span>
-            </label>
-            <p className="mt-1 rounded-md bg-surface px-3 py-2 text-xs text-ink-faint">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-ink-soft">
+                Prompt 模板 <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiOpen((v) => !v);
+                  setAiError("");
+                }}
+                className="text-xs font-medium text-accent hover:underline"
+              >
+                ✨ AI 帮我写
+              </button>
+            </div>
+
+            {aiOpen && (
+              <div className="mt-2 rounded-md border border-accent/40 bg-accent-soft/40 p-3">
+                <p className="text-xs text-ink-soft">
+                  描述你想要的分析方向，AI 将帮你生成 prompt
+                </p>
+                <textarea
+                  value={aiDesc}
+                  onChange={(e) => setAiDesc(e.target.value)}
+                  rows={2}
+                  placeholder="例如：帮我分析创始人背景和团队完整性"
+                  className="mt-2 w-full resize-none rounded border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+                {aiError && (
+                  <p className="mt-2 text-xs text-red-600">{aiError}</p>
+                )}
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiOpen(false);
+                      setAiError("");
+                    }}
+                    disabled={aiBusy}
+                    className="rounded border border-line px-3 py-1 text-xs text-ink-soft hover:bg-surface disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={aiGenerate}
+                    disabled={aiBusy}
+                    className="rounded bg-accent px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {aiBusy ? "生成中…" : "生成"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <p className="mt-2 rounded-md bg-surface px-3 py-2 text-xs text-ink-faint">
               可使用以下变量（运行时自动注入关联项目数据）：
               <br />
               <code>{"{project_info}"}</code> <code>{"{bp_content}"}</code>{" "}
               <code>{"{financial_data}"}</code> <code>{"{judgments}"}</code>
             </p>
             <textarea
+              ref={templateRef}
               value={template}
               onChange={(e) => setTemplate(e.target.value)}
               rows={8}
-              placeholder="请对以下项目进行分析…\n\n项目信息：\n{project_info}\n\nBP内容：\n{bp_content}"
+              placeholder="请对以下项目进行分析…&#10;&#10;项目信息：&#10;{project_info}&#10;&#10;BP内容：&#10;{bp_content}"
               className="mt-1.5 w-full resize-y rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-accent"
             />
           </div>

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { SkillRunner } from "@/components/skills/SkillRunner";
 import { CreateSkillModal } from "@/components/skills/CreateSkillModal";
+import { ImportSkillModal } from "@/components/skills/ImportSkillModal";
 import {
-  SKILL_CATEGORIES,
   CATEGORY_ICONS,
   STAGE_LABELS,
 } from "@/lib/skills";
@@ -16,6 +16,7 @@ interface SkillItem {
   category: string | null;
   applicable_stages: string[];
   skillType: "catalog" | "custom";
+  prompt_template?: string;
 }
 
 type TabKey = "all" | "analysis" | "due_diligence" | "valuation" | "post_investment" | "mine";
@@ -36,6 +37,13 @@ export default function SkillsPage() {
   const [tab, setTab] = useState<TabKey>("all");
   const [runnerSkill, setRunnerSkill] = useState<SkillItem | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  // 判断记录数（用于「从我的历史判断生成专属 SKILL」入口）
+  const [judgmentCount, setJudgmentCount] = useState<number | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+  // 新建后短暂高亮的 SKILL id
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -64,7 +72,70 @@ export default function SkillsPage() {
 
   useEffect(() => {
     load();
+    // 拉一次判断记录数；失败静默忽略
+    fetch("/api/skills/judgments-count")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setJudgmentCount(d.count ?? 0))
+      .catch(() => setJudgmentCount(0));
   }, []);
+
+  function flashHighlight(id: string) {
+    setHighlightId(id);
+    window.setTimeout(
+      () => setHighlightId((cur) => (cur === id ? null : cur)),
+      3000
+    );
+  }
+
+  async function generateFromJudgments() {
+    setGenerating(true);
+    setGenerateError("");
+    try {
+      const res = await fetch("/api/skills/generate-from-judgments", {
+        method: "POST",
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "生成失败");
+      await load();
+      setTab("mine");
+      if (j.skill?.id) flashHighlight(j.skill.id);
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : "生成失败");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function exportSkill(skill: SkillItem) {
+    if (!skill.prompt_template) {
+      alert("无法导出：缺少 prompt 模板");
+      return;
+    }
+    const payload = {
+      aivestor_skill_version: "1.0",
+      exported_at: new Date().toISOString(),
+      skill: {
+        name: skill.name,
+        description: skill.description ?? "",
+        prompt: skill.prompt_template,
+        category: skill.category,
+        applicable_stages: skill.applicable_stages,
+      },
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const date = new Date().toISOString().slice(0, 10);
+    const safeName = skill.name.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `aivestor-skill-${safeName}-${date}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   async function deleteCustom(id: string) {
     if (!confirm("确定删除该自建 SKILL？")) return;
@@ -89,12 +160,20 @@ export default function SkillsPage() {
             投资分析技能库，一键调用结构化分析框架
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-        >
-          创建我的 SKILL
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="rounded-md border border-line px-3 py-2 text-sm text-ink-soft hover:bg-surface"
+          >
+            导入 SKILL
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            创建我的 SKILL
+          </button>
+        </div>
       </div>
 
       {/* 分类 Tab */}
@@ -114,6 +193,16 @@ export default function SkillsPage() {
         ))}
       </div>
 
+      {/* 「从我的历史判断生成专属 SKILL」入口（仅在 mine tab） */}
+      {tab === "mine" && (
+        <JudgmentSkillCard
+          count={judgmentCount}
+          generating={generating}
+          error={generateError}
+          onGenerate={generateFromJudgments}
+        />
+      )}
+
       {/* SKILL 卡片网格 */}
       {loading ? (
         <p className="mt-8 text-sm text-ink-faint">加载中…</p>
@@ -123,7 +212,11 @@ export default function SkillsPage() {
             <SkillCard
               key={s.id}
               skill={s}
+              highlight={s.id === highlightId}
               onRun={() => setRunnerSkill(s)}
+              onExport={
+                s.skillType === "custom" ? () => exportSkill(s) : undefined
+              }
               onDelete={
                 s.skillType === "custom"
                   ? () => deleteCustom(s.id)
@@ -172,27 +265,103 @@ export default function SkillsPage() {
           }}
         />
       )}
+
+      {/* 导入面板 */}
+      {showImport && (
+        <ImportSkillModal
+          onClose={() => setShowImport(false)}
+          onImported={() => {
+            setShowImport(false);
+            setTab("mine");
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function JudgmentSkillCard({
+  count,
+  generating,
+  error,
+  onGenerate,
+}: {
+  count: number | null;
+  generating: boolean;
+  error: string;
+  onGenerate: () => void;
+}) {
+  const ready = count !== null && count >= 5;
+  return (
+    <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-800">
+            ✨ 从我的历史判断生成专属 SKILL
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            基于你的投资决策记录，提炼个人投资框架
+          </p>
+          {!ready && count !== null && (
+            <p className="mt-1 text-xs text-slate-400">
+              当前判断记录数 {count} / 5，至少需要 5 条
+            </p>
+          )}
+          {error && (
+            <p className="mt-1 text-xs text-red-600">{error}</p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={!ready || generating}
+          className="shrink-0 rounded-lg bg-[#1B6FE8] px-3.5 py-1.5 text-xs font-medium text-white transition-colors duration-150 hover:bg-[#1762d0] disabled:bg-slate-200 disabled:text-slate-500"
+        >
+          {generating ? "生成中…" : "立即生成"}
+        </button>
+      </div>
     </div>
   );
 }
 
 function SkillCard({
   skill,
+  highlight,
   onRun,
+  onExport,
   onDelete,
 }: {
   skill: SkillItem;
+  highlight?: boolean;
   onRun: () => void;
+  onExport?: () => void;
   onDelete?: () => void;
 }) {
   const icon = skill.category ? CATEGORY_ICONS[skill.category] ?? "🧩" : "🧩";
   return (
-    <div className="flex flex-col rounded-lg border border-line bg-surface p-4">
+    <div
+      className={`flex flex-col rounded-lg border bg-surface p-4 transition-all duration-500 ${
+        highlight
+          ? "border-[#1B6FE8] bg-blue-50 shadow-md ring-2 ring-blue-500/30"
+          : "border-line"
+      }`}
+    >
       <div className="flex items-start gap-2">
         <span className="text-lg">{icon}</span>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-medium text-ink">{skill.name}</h3>
         </div>
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="shrink-0 text-xs text-ink-faint hover:text-accent"
+            aria-label="导出"
+            title="导出为 JSON"
+          >
+            ↓
+          </button>
+        )}
         {onDelete && (
           <button
             onClick={onDelete}

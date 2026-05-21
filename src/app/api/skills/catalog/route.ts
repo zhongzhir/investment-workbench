@@ -8,6 +8,7 @@ interface SkillRow {
   description: string | null;
   category: string | null;
   applicable_stages: string[];
+  prompt_template?: string;
 }
 
 // GET /api/skills/catalog — 官方 SKILL（is_active）+ 当前用户自建 SKILL
@@ -25,8 +26,9 @@ export async function GET() {
         ORDER BY sort_order ASC, created_at ASC`
     );
 
+    // 自建 SKILL 包含 prompt_template，前端「导出」需要完整 prompt
     const custom = await query<SkillRow>(
-      `SELECT id, name, description, category, applicable_stages
+      `SELECT id, name, description, category, applicable_stages, prompt_template
          FROM user_custom_skills
         WHERE user_id = $1
         ORDER BY created_at DESC`,
