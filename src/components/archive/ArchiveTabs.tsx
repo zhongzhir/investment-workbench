@@ -319,7 +319,7 @@ function ReportsTab({
               </div>
               <div className="flex shrink-0 items-center gap-2 text-xs">
                 <Link
-                  href={`/projects/${projectId}/report`}
+                  href={`/projects/${projectId}/report?reportId=${r.id}`}
                   className="rounded border border-slate-200 px-2 py-1 text-ink-soft hover:bg-slate-50"
                 >
                   查看

@@ -16,7 +16,7 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { generate?: string };
+  searchParams: { generate?: string; reportId?: string };
 }) {
   const session = await requireAuth();
 
@@ -29,22 +29,35 @@ export default async function ReportPage({
   );
   if (projects.length === 0) notFound();
 
-  const reports = await query<ReportRow>(
-    `SELECT id, content, conversation_history
-       FROM reports
-      WHERE project_id = $1 AND user_id = $2
-      ORDER BY updated_at DESC LIMIT 1`,
-    [params.id, session.user.id]
-  );
-  const latest = reports[0];
+  // 指定了 reportId 时打开该条报告；否则回退到最新报告（向后兼容）
+  let report: ReportRow | undefined;
+  if (searchParams.reportId) {
+    const specific = await query<ReportRow>(
+      `SELECT id, content, conversation_history
+         FROM reports
+        WHERE id = $1 AND project_id = $2 AND user_id = $3`,
+      [searchParams.reportId, params.id, session.user.id]
+    );
+    report = specific[0];
+  }
+  if (!report) {
+    const reports = await query<ReportRow>(
+      `SELECT id, content, conversation_history
+         FROM reports
+        WHERE project_id = $1 AND user_id = $2
+        ORDER BY updated_at DESC LIMIT 1`,
+      [params.id, session.user.id]
+    );
+    report = reports[0];
+  }
 
   return (
     <ReportView
       projectId={params.id}
       projectName={projects[0].name}
-      initialReportId={latest?.id ?? null}
-      initialContent={latest?.content ?? ""}
-      initialHistory={latest?.conversation_history ?? []}
+      initialReportId={report?.id ?? null}
+      initialContent={report?.content ?? ""}
+      initialHistory={report?.conversation_history ?? []}
       initialFinancialData={projects[0].financial_data}
       autoGenerate={searchParams.generate === "1"}
     />
