@@ -57,8 +57,28 @@ export function ChatArea({
   const [prefSaved, setPrefSaved] = useState(false);
   const [prefError, setPrefError] = useState("");
   const [prefSaving, setPrefSaving] = useState(false);
+  // 后台静默沉淀完成后的极简提示（2 秒消失），以及手动沉淀浮层开关
+  const [digestToast, setDigestToast] = useState(false);
+  const [showDigestPanel, setShowDigestPanel] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const digestToastTimer = useRef<number | null>(null);
+
+  // 卸载时清理 toast 定时器
+  useEffect(() => {
+    return () => {
+      if (digestToastTimer.current) window.clearTimeout(digestToastTimer.current);
+    };
+  }, []);
+
+  function flashDigestToast() {
+    if (digestToastTimer.current) window.clearTimeout(digestToastTimer.current);
+    setDigestToast(true);
+    digestToastTimer.current = window.setTimeout(
+      () => setDigestToast(false),
+      2000
+    );
+  }
 
   // 切换对话时同步外部 messages
   useEffect(() => {
@@ -139,7 +159,8 @@ export function ChatArea({
             } else if (msg.type === "save_pref") {
               savePref = typeof msg.pref === "string" ? msg.pref : null;
             } else if (msg.type === "auto_digest") {
-              // 自动沉淀已落库；当前不做强提示，保留埋点位置
+              // 后台已静默沉淀入库，仅给一个 2 秒消失的极简提示
+              flashDigestToast();
             } else if (msg.type === "error") {
               throw new Error(msg.error);
             }
@@ -239,7 +260,7 @@ export function ChatArea({
   const turnCount = messages.length;
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-canvas">
+    <div className="relative flex h-full flex-1 flex-col bg-canvas">
       {/* 顶部 */}
       <div className="border-b border-slate-200 px-6 py-4">
         <h1 className="truncate text-base font-semibold text-ink">
@@ -305,20 +326,19 @@ export function ChatArea({
                 streaming
               />
             )}
-            {/* DigestCard：置于消息流末尾，与 AI 气泡共用同一容器，确保左右完全对齐 */}
-            {turnCount >= 3 && !streaming && (
-              <DigestCard
-                conversationId={conversation.id}
-                projectId={conversation.project_id}
-                projectName={
-                  conversation.project_name ?? conversation.title ?? "独立对话"
-                }
-                conversationLength={turnCount}
-              />
-            )}
           </div>
         )}
       </div>
+
+      {/* 后台静默沉淀完成提示：浮层、不占位、2 秒消失 */}
+      {digestToast && (
+        <div className="pointer-events-none absolute bottom-32 left-1/2 z-20 -translate-x-1/2">
+          <div className="flex items-center gap-2 rounded-full border border-green-200 bg-white/95 px-3.5 py-1.5 text-xs text-slate-600 shadow-sm backdrop-blur">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            已更新知识库
+          </div>
+        </div>
+      )}
 
       {/* 错误提示 */}
       {error && (
@@ -333,7 +353,42 @@ export function ChatArea({
 
       {/* 输入区 */}
       <div className="border-t border-slate-200 bg-canvas px-6 py-4">
-        <div className="mx-auto max-w-3xl">
+        <div className="relative mx-auto max-w-3xl">
+          {/* 手动沉淀浮层：主动查看/编辑本次对话将沉淀的内容 */}
+          {showDigestPanel && (
+            <div className="absolute bottom-full right-0 z-30 mb-2 w-[min(92vw,28rem)] rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-ink">
+                  本次对话将沉淀的内容
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowDigestPanel(false)}
+                  className="text-sm text-slate-400 hover:text-slate-600"
+                  aria-label="关闭"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                点击下方按钮生成预览，可编辑后存入；对话也会在后台自动沉淀。
+              </p>
+              <div className="mt-1 max-h-[60vh] overflow-y-auto">
+                <DigestCard
+                  compact
+                  conversationId={conversation.id}
+                  projectId={conversation.project_id}
+                  projectName={
+                    conversation.project_name ??
+                    conversation.title ??
+                    "独立对话"
+                  }
+                  conversationLength={turnCount}
+                  onDigested={flashDigestToast}
+                />
+              </div>
+            </div>
+          )}
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -351,24 +406,53 @@ export function ChatArea({
             >
               {input.length} / {MAX_LEN}
             </span>
-            {streaming ? (
-              <button
-                type="button"
-                onClick={stop}
-                className="rounded-lg border border-red-300 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors duration-150 hover:bg-red-50"
-              >
-                停止
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => send(input)}
-                disabled={!input.trim() || overLimit}
-                className="rounded-lg bg-[#1B6FE8] px-4 py-1.5 text-sm font-medium tracking-[0.01em] text-white transition-colors duration-150 hover:bg-[#1762d0] disabled:opacity-50"
-              >
-                发送
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* 静默沉淀入口：主动查看本次对话将沉淀的内容（≥3 条消息才可提炼） */}
+              {turnCount >= 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowDigestPanel((v) => !v)}
+                  aria-label="查看将沉淀到知识库的内容"
+                  title="沉淀到知识库"
+                  className={`rounded-lg border px-2 py-1.5 transition-colors duration-150 ${
+                    showDigestPanel
+                      ? "border-blue-300 bg-blue-50 text-blue-600"
+                      : "border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-600"
+                  }`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                  >
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+              )}
+              {streaming ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  className="rounded-lg border border-red-300 px-4 py-1.5 text-sm font-medium text-red-600 transition-colors duration-150 hover:bg-red-50"
+                >
+                  停止
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => send(input)}
+                  disabled={!input.trim() || overLimit}
+                  className="rounded-lg bg-[#1B6FE8] px-4 py-1.5 text-sm font-medium tracking-[0.01em] text-white transition-colors duration-150 hover:bg-[#1762d0] disabled:opacity-50"
+                >
+                  发送
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

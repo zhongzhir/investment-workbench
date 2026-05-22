@@ -20,6 +20,8 @@ interface DigestCardProps {
   projectName: string;
   conversationLength: number;
   onDigested?: () => void;
+  // 紧凑模式：用于浮层内嵌，去掉顶部外边距
+  compact?: boolean;
 }
 
 type Phase = "entry" | "loading" | "preview" | "saving" | "done";
@@ -41,6 +43,7 @@ export function DigestCard({
   projectName,
   conversationLength,
   onDigested,
+  compact = false,
 }: DigestCardProps) {
   const [phase, setPhase] = useState<Phase>("entry");
   const [editing, setEditing] = useState(false);
@@ -152,13 +155,15 @@ export function DigestCard({
   }
 
   // 柔和的边框卡片风格，替代深蓝+橙色高饱和方案
-  const cardClass =
-    "mt-8 rounded-xl border border-blue-200 bg-blue-50/60 p-4";
+  const topMargin = compact ? "" : "mt-8";
+  const cardClass = `${topMargin} rounded-xl border border-blue-200 bg-blue-50/60 p-4`;
 
   // 状态四：已入库
   if (phase === "done") {
     return (
-      <div className="mt-8 rounded-xl border border-green-200 bg-green-50/60 p-4">
+      <div
+        className={`${topMargin} rounded-xl border border-green-200 bg-green-50/60 p-4`}
+      >
         <p className="text-sm font-medium text-green-700">✅ 已存入知识库</p>
         <p className="mt-1 text-xs text-slate-500">
           此次对话的认知摘要已沉淀，将在未来的分析中自动参考。

@@ -7,8 +7,9 @@ import { generateEmbedding } from "@/lib/embedding";
 // 与 /api/conversations/[id]/digest 的逻辑一致，但跳过用户确认环节。
 
 // 触发条件：消息条数 >= 起步阈值，且每 N 条触发一次。
-export const AUTO_DIGEST_MIN_MESSAGES = 6;
-export const AUTO_DIGEST_INTERVAL = 4;
+// 静默化后阈值提高到 10：对话达到 10 条消息时首次后台沉淀，之后每 10 条刷新一次。
+export const AUTO_DIGEST_MIN_MESSAGES = 10;
+export const AUTO_DIGEST_INTERVAL = 10;
 
 export function shouldAutoDigest(messageCount: number): boolean {
   return (
