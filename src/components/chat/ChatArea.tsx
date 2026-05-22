@@ -305,30 +305,29 @@ export function ChatArea({
                 streaming
               />
             )}
+            {/* DigestCard：置于消息流末尾，与 AI 气泡共用同一容器，确保左右完全对齐 */}
+            {turnCount >= 3 && !streaming && (
+              <DigestCard
+                conversationId={conversation.id}
+                projectId={conversation.project_id}
+                projectName={
+                  conversation.project_name ?? conversation.title ?? "独立对话"
+                }
+                conversationLength={turnCount}
+              />
+            )}
           </div>
         )}
       </div>
 
-      {/* DigestCard：≥3 轮且非流式时显示 */}
-      {turnCount >= 3 && !streaming && (
-        <div className="px-6">
-          <div className="mx-auto max-w-3xl">
-            <DigestCard
-            conversationId={conversation.id}
-            projectId={conversation.project_id}
-            projectName={conversation.project_name ?? conversation.title ?? "独立对话"}
-            conversationLength={turnCount}
-            />
-          </div>
-        </div>
-      )}
-
       {/* 错误提示 */}
       {error && (
-        <div className="mx-auto w-full max-w-3xl px-6">
-          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
-            {error}
-          </p>
+        <div className="px-6">
+          <div className="mx-auto max-w-3xl">
+            <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </p>
+          </div>
         </div>
       )}
 

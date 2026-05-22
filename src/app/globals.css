@@ -12,19 +12,19 @@ body {
 }
 
 body {
-  @apply bg-canvas text-ink antialiased;
+  @apply bg-canvas text-ink;
   font-family: var(--font-inter), var(--font-noto),
     "PingFang SC", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
   letter-spacing: 0.01em;
-  /* 提升中文字体渲染重量，解决偏细问题 */
-  font-weight: 500;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* 用真实字重 + auto 平滑，避免合成加粗发毛 */
+  font-weight: 400;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
-/* 中文正文行高适当放大 + 正文字重保持 500 */
+/* 中文正文行高适当放大；字重回到 400 */
 p,
 li,
 td,
@@ -32,7 +32,7 @@ th,
 span,
 textarea {
   line-height: 1.75;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* 标题字重层次（Tailwind 工具类具有更高优先级，可逐个覆盖） */
@@ -55,10 +55,10 @@ h4 {
   font-weight: 600;
 }
 
-/* bold / strong 要更明显 */
+/* bold / strong 用真实 700 字重 */
 strong,
 b {
-  font-weight: 800;
+  font-weight: 700;
 }
 
 /* 数字与金融数据用等宽字体 */
@@ -122,10 +122,10 @@ b {
 }
 .report-body p {
   @apply my-3;
-  font-weight: 500;
+  font-weight: 400;
 }
 .report-body li {
-  font-weight: 500;
+  font-weight: 400;
 }
 .report-body ul {
   @apply my-3 list-disc space-y-1 pl-6;
@@ -134,8 +134,8 @@ b {
   @apply my-3 list-decimal space-y-1 pl-6;
 }
 .report-body strong {
-  @apply font-semibold text-ink;
-  font-weight: 800;
+  @apply text-ink;
+  font-weight: 700;
 }
 
 /* 报告溯源徽章：[src:doc] / [src:data] / [src:ai] 渲染产物 */
