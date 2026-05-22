@@ -18,35 +18,47 @@ body {
   font-size: 15px;
   line-height: 1.6;
   letter-spacing: 0.01em;
+  /* 提升中文字体渲染重量，解决偏细问题 */
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* 中文正文行高适当放大 */
+/* 中文正文行高适当放大 + 正文字重保持 500 */
 p,
 li,
 td,
+th,
+span,
 textarea {
   line-height: 1.75;
+  font-weight: 500;
 }
 
 /* 标题字重层次（Tailwind 工具类具有更高优先级，可逐个覆盖） */
 h1 {
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.02em;
 }
 h2 {
   font-size: 1.375rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 h3 {
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 h4 {
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
+}
+
+/* bold / strong 要更明显 */
+strong,
+b {
+  font-weight: 800;
 }
 
 /* 数字与金融数据用等宽字体 */
@@ -92,6 +104,9 @@ h4 {
 .report-body {
   font-family: "Songti SC", "SimSun", Georgia, "Times New Roman", serif;
   @apply text-[15.5px] leading-8 text-ink;
+  /* 与 .prose 同步的渲染优化（不动字体族 / 字号） */
+  line-height: 1.85;
+  letter-spacing: 0.015em;
 }
 .report-body h1 {
   @apply mb-3 mt-8 border-b border-line pb-1.5 text-lg font-semibold text-ink;
@@ -107,6 +122,10 @@ h4 {
 }
 .report-body p {
   @apply my-3;
+  font-weight: 500;
+}
+.report-body li {
+  font-weight: 500;
 }
 .report-body ul {
   @apply my-3 list-disc space-y-1 pl-6;
@@ -116,6 +135,7 @@ h4 {
 }
 .report-body strong {
   @apply font-semibold text-ink;
+  font-weight: 800;
 }
 
 /* 报告溯源徽章：[src:doc] / [src:data] / [src:ai] 渲染产物 */
@@ -173,4 +193,34 @@ h4 {
 }
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-ink-faint;
+}
+
+/* AI 输出 Markdown 渲染优化 */
+.prose {
+  line-height: 1.85;
+  letter-spacing: 0.015em;
+}
+
+.prose p {
+  font-weight: 500;
+  margin-bottom: 0.9em;
+}
+
+.prose li {
+  font-weight: 500;
+  line-height: 1.8;
+  margin-bottom: 0.4em;
+}
+
+.prose strong {
+  font-weight: 800;
+  color: inherit;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }

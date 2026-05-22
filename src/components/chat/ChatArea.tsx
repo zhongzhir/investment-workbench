@@ -311,13 +311,15 @@ export function ChatArea({
 
       {/* DigestCard：≥3 轮且非流式时显示 */}
       {turnCount >= 3 && !streaming && (
-        <div className="mx-auto w-full max-w-3xl px-6">
-          <DigestCard
+        <div className="px-6">
+          <div className="mx-auto max-w-3xl">
+            <DigestCard
             conversationId={conversation.id}
             projectId={conversation.project_id}
             projectName={conversation.project_name ?? conversation.title ?? "独立对话"}
             conversationLength={turnCount}
-          />
+            />
+          </div>
         </div>
       )}
 

@@ -151,15 +151,16 @@ export function DigestCard({
     }));
   }
 
+  // 柔和的边框卡片风格，替代深蓝+橙色高饱和方案
   const cardClass =
-    "mt-8 rounded-xl border border-blue-800/40 bg-[#0D1B3E] p-4 text-white";
+    "mt-8 rounded-xl border border-blue-200 bg-blue-50/60 p-4";
 
   // 状态四：已入库
   if (phase === "done") {
     return (
-      <div className={cardClass}>
-        <p className="text-sm font-medium">✅ 已存入知识库</p>
-        <p className="mt-1 text-xs text-white/70">
+      <div className="mt-8 rounded-xl border border-green-200 bg-green-50/60 p-4">
+        <p className="text-sm font-medium text-green-700">✅ 已存入知识库</p>
+        <p className="mt-1 text-xs text-slate-500">
           此次对话的认知摘要已沉淀，将在未来的分析中自动参考。
         </p>
       </div>
@@ -170,7 +171,7 @@ export function DigestCard({
   if (phase === "loading") {
     return (
       <div className={cardClass}>
-        <p className="text-sm">AI 正在提炼认知摘要…</p>
+        <p className="text-sm text-blue-700">AI 正在提炼认知摘要…</p>
       </div>
     );
   }
@@ -180,12 +181,12 @@ export function DigestCard({
     return (
       <div className={cardClass}>
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">📝 认知摘要预览</p>
+          <p className="text-sm font-medium text-blue-700">📝 认知摘要预览</p>
           <div className="flex items-center gap-2 text-xs">
             <button
               type="button"
               onClick={() => setEditing((v) => !v)}
-              className="rounded border border-white/30 px-2 py-0.5 hover:bg-white/10"
+              className="rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-100"
             >
               {editing ? "完成编辑" : "编辑"}
             </button>
@@ -193,7 +194,7 @@ export function DigestCard({
               type="button"
               onClick={digest}
               disabled={phase === "saving"}
-              className="rounded border border-white/30 px-2 py-0.5 hover:bg-white/10 disabled:opacity-50"
+              className="rounded border border-slate-300 px-2 py-0.5 text-slate-600 hover:bg-slate-100 disabled:opacity-50"
             >
               重新提炼
             </button>
@@ -233,11 +234,11 @@ export function DigestCard({
                 }))
               }
               rows={2}
-              className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/50 focus:outline-none"
+              className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-ink placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
               placeholder="若无明显变化可留空"
             />
           ) : (
-            <p className="text-xs text-white/80">
+            <p className="text-xs text-slate-700">
               {data.mindset_shift ?? "（无明显变化）"}
             </p>
           )}
@@ -262,18 +263,18 @@ export function DigestCard({
                 setData((d) => ({ ...d, summary: e.target.value }))
               }
               rows={3}
-              className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/50 focus:outline-none"
+              className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-ink placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
               placeholder="100 字以内核心摘要"
             />
           ) : (
-            <p className="text-xs leading-relaxed text-white/90">
+            <p className="text-xs leading-relaxed text-slate-700">
               {data.summary}
             </p>
           )}
         </Section>
 
         {error && (
-          <p className="mt-3 rounded bg-red-500/20 px-2 py-1 text-xs text-red-200">
+          <p className="mt-3 rounded bg-red-50 px-2 py-1 text-xs text-red-600">
             {error}
           </p>
         )}
@@ -287,7 +288,7 @@ export function DigestCard({
               setEditing(false);
             }}
             disabled={phase === "saving"}
-            className="text-xs text-white/60 hover:text-white"
+            className="text-xs text-slate-500 hover:text-slate-700"
           >
             忽略
           </button>
@@ -295,7 +296,7 @@ export function DigestCard({
             type="button"
             onClick={save}
             disabled={phase === "saving" || !data.summary.trim()}
-            className="rounded bg-[#FF6B35] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
           >
             {phase === "saving" ? "存入中…" : "存入知识库 ✓"}
           </button>
@@ -307,18 +308,18 @@ export function DigestCard({
   // 状态一：入口提示
   return (
     <div className={cardClass}>
-      <p className="text-sm font-medium">💡 沉淀此次对话的认知价值</p>
-      <p className="mt-1 text-xs text-white/70">
+      <p className="text-sm font-medium text-blue-700">💡 沉淀此次对话的认知价值</p>
+      <p className="mt-1 text-xs text-slate-500">
         已进行 {conversationLength} 轮深度对话，
         AI 可帮你提炼关键判断与待核实事项，存入知识库。
       </p>
       {skipReason && (
-        <p className="mt-2 rounded bg-white/10 px-2 py-1 text-xs text-white/80">
+        <p className="mt-2 rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">
           {skipReason}
         </p>
       )}
       {error && (
-        <p className="mt-2 rounded bg-red-500/20 px-2 py-1 text-xs text-red-200">
+        <p className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600">
           {error}
         </p>
       )}
@@ -326,7 +327,7 @@ export function DigestCard({
         <button
           type="button"
           onClick={digest}
-          className="rounded bg-[#FF6B35] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+          className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
         >
           提炼并存入知识库
         </button>
@@ -344,7 +345,7 @@ function Section({
 }) {
   return (
     <div className="mt-4">
-      <p className="text-xs font-medium text-white/70">{title}</p>
+      <p className="text-xs font-medium text-slate-500">{title}</p>
       <div className="mt-1.5">{children}</div>
     </div>
   );
@@ -367,12 +368,12 @@ function List({
 }) {
   if (!editing) {
     if (items.length === 0) {
-      return <p className="text-xs text-white/50">（无）</p>;
+      return <p className="text-xs text-slate-400">（无）</p>;
     }
     return (
       <ul className="space-y-1">
         {items.map((it, i) => (
-          <li key={i} className="text-xs text-white/90">
+          <li key={i} className="text-xs text-slate-700">
             · {it}
           </li>
         ))}
@@ -388,12 +389,12 @@ function List({
             value={it}
             onChange={(e) => onChange(i, e.target.value)}
             placeholder={placeholder}
-            className="flex-1 rounded bg-white/10 px-2 py-1 text-xs text-white placeholder:text-white/50 focus:outline-none"
+            className="flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs text-ink placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
           />
           <button
             type="button"
             onClick={() => onRemove(i)}
-            className="text-xs text-white/60 hover:text-white"
+            className="text-xs text-slate-400 hover:text-slate-600"
             aria-label="删除"
           >
             ×
@@ -403,7 +404,7 @@ function List({
       <button
         type="button"
         onClick={onAdd}
-        className="text-xs text-white/70 hover:text-white"
+        className="text-xs text-slate-500 hover:text-slate-700"
       >
         + 添加一条
       </button>
