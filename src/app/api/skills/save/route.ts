@@ -26,8 +26,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "内容不能为空" }, { status: 422 });
     }
 
-    // 校验项目归属（若指定了项目）
-    let projectId: string | null = null;
+    // 关联了项目：SKILL 分析结果写入 reports 表，进项目档案的「分析报告」
     if (body.project_id) {
       const owned = await query<{ id: string }>(
         "SELECT id FROM projects WHERE id = $1 AND user_id = $2",
@@ -36,9 +35,23 @@ export async function POST(req: Request) {
       if (owned.length === 0) {
         return NextResponse.json({ error: "项目不存在" }, { status: 404 });
       }
-      projectId = body.project_id;
+
+      // 注意：reports.status 的 CHECK 约束只允许 'draft' / 'finalized'，
+      // 故此处用 'finalized'（语义即「定稿」），而非 'final'。
+      const reportRows = await query<{ id: string }>(
+        `INSERT INTO reports (project_id, user_id, title, content, status)
+         VALUES ($1, $2, $3, $4, 'finalized')
+         RETURNING id`,
+        [body.project_id, session.user.id, `【SKILL】${skillName}`, content]
+      );
+
+      return NextResponse.json(
+        { success: true, target: "report", reportId: reportRows[0].id },
+        { status: 201 }
+      );
     }
 
+    // 未关联项目：保持原行为，写入个人知识库
     // 生成 embedding（百炼未配置或失败则仅保留全文检索）
     let embeddingVector: number[] | null = null;
     let embeddingModel: string | null = null;
@@ -57,7 +70,7 @@ export async function POST(req: Request) {
        RETURNING id`,
       [
         session.user.id,
-        projectId,
+        null,
         content,
         JSON.stringify([skillName]),
         embeddingVector ? `[${embeddingVector.join(",")}]` : null,
@@ -67,7 +80,7 @@ export async function POST(req: Request) {
     );
 
     return NextResponse.json(
-      { success: true, entryId: rows[0].id },
+      { success: true, target: "knowledge", entryId: rows[0].id },
       { status: 201 }
     );
   } catch (e) {

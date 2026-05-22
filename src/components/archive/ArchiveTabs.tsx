@@ -241,13 +241,27 @@ function ReportsTab({
   }
   return (
     <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
-      {reports.map((r) => (
+      {reports.map((r) => {
+        const isSkill = r.title.startsWith("【SKILL】");
+        const displayTitle = isSkill
+          ? r.title.replace(/^【SKILL】/, "")
+          : r.title;
+        return (
         <li
           key={r.id}
           className="flex items-center justify-between gap-3 px-4 py-3"
         >
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-ink">{r.title}</p>
+            <div className="flex items-center gap-2">
+              {isSkill && (
+                <span className="shrink-0 rounded bg-purple-50 px-1.5 py-0.5 text-[11px] font-medium text-purple-700 ring-1 ring-inset ring-purple-200">
+                  SKILL 分析
+                </span>
+              )}
+              <p className="truncate text-sm font-medium text-ink">
+                {displayTitle}
+              </p>
+            </div>
             <p className="mt-0.5 text-xs text-slate-400">
               v{r.version}
               {" · "}
@@ -277,7 +291,8 @@ function ReportsTab({
             </a>
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

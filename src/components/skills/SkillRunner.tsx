@@ -181,8 +181,12 @@ export function SkillRunner({ skill, onClose }: Props) {
                   {saveState === "saving"
                     ? "保存中…"
                     : saveState === "saved"
-                      ? "✅ 已保存到知识库"
-                      : "保存到项目知识库"}
+                      ? projectId
+                        ? "✅ 已保存到项目档案"
+                        : "✅ 已保存到知识库"
+                      : projectId
+                        ? "保存到项目档案"
+                        : "保存到知识库"}
                 </button>
               )}
             </div>
