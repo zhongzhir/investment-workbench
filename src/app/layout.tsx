@@ -1,20 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Noto_Sans_SC } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 
+// 仅自托管 Inter（拉丁/数字）。中文用系统字体栈（见 globals.css），
+// 因为 next/font 的 Noto Sans SC 只暴露 latin 子集，中文字形无法可靠自托管。
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
-  display: "swap",
-});
-
-const notoSansSC = Noto_Sans_SC({
-  // next/font 的 Noto Sans SC 类型仅暴露 latin 等通用子集；
-  // 中文字形仍随字体加载（Google Fonts 按字符切片）。
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
-  variable: "--font-noto",
   display: "swap",
 });
 
@@ -43,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body
-        className={`${inter.variable} ${notoSansSC.variable}`}
+        className={inter.variable}
       >
         <Providers>{children}</Providers>
       </body>

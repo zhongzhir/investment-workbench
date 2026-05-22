@@ -13,8 +13,10 @@ body {
 
 body {
   @apply bg-canvas text-ink;
-  font-family: var(--font-inter), var(--font-noto),
-    "PingFang SC", system-ui, sans-serif;
+  /* Inter 负责拉丁/数字；中文走系统字体，渲染天然平顺、无需外部加载 */
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont,
+    "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC",
+    system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
   letter-spacing: 0.01em;
