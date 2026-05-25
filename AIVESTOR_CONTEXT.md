@@ -12,7 +12,7 @@
 | **品牌定位** | 以投资人为中心，AI 赋能投资人持续进化 |
 | **备案域名** | aivestor.cn（备案中，已提交通信管理局，约20个工作日）|
 | **临时生产地址** | https://vestia-two.vercel.app |
-| **代码仓库** | https://github.com/zhongzhir/investment-workbench |
+| **代码仓库** | https://github.com/zhongzhir/Aivestor |
 | **当前阶段** | V2.3 功能完整，全链路验证通过，内测启动中 |
 | **开发模式** | Chat（Claude.ai）负责框架讨论与决策 → Claude Code 负责代码执行 |
 
